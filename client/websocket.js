@@ -7,6 +7,11 @@ class WebSocketClient {
     this.statusText = document.querySelector(statusTextSelector);
     this.socket = null;
     
+    // Observer Callbacks for canvas synchronization
+    this.listeners = {
+      draw: []
+    };
+
     this.init();
   }
 
@@ -38,14 +43,16 @@ class WebSocketClient {
     this.socket.on('disconnect', (reason) => {
       console.warn(`[Socket Client] Disconnected. Reason: ${reason}`);
       this.updateStatus(false);
-      
-      // If the disconnect was initiated by the server, it will auto-reconnect.
-      // If client-initiated, we would call socket.connect() manually.
     });
 
     this.socket.on('connect_error', (error) => {
       console.error(`[Socket Client] Connection error: ${error.message}`);
       this.updateStatus(false);
+    });
+
+    // Listen for remote drawing broadcasts from the server
+    this.socket.on('draw', (drawData) => {
+      this.emit('draw', drawData);
     });
   }
 
@@ -65,6 +72,33 @@ class WebSocketClient {
       this.statusDot.classList.add('disconnected');
       this.statusText.textContent = 'Disconnected';
       this.statusText.style.color = 'var(--text-secondary)';
+    }
+  }
+
+  /**
+   * Subscribes observer functions to network events
+   */
+  on(eventName, callback) {
+    if (this.listeners[eventName]) {
+      this.listeners[eventName].push(callback);
+    }
+  }
+
+  /**
+   * Triggers registered callbacks with event payload arguments
+   */
+  emit(eventName, payload) {
+    if (this.listeners[eventName]) {
+      this.listeners[eventName].forEach(cb => cb(payload));
+    }
+  }
+
+  /**
+   * Emit drawing events to server
+   */
+  sendDrawing(drawData) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('draw', drawData);
     }
   }
 }

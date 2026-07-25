@@ -40,6 +40,12 @@ app.get('*', (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[Socket Server] Client connected: ${socket.id}`);
 
+  // Capture real-time drawing coordinates from a client
+  socket.on('draw', (drawData) => {
+    // Relay drawing data to all other connected clients in the lobby
+    socket.broadcast.emit('draw', drawData);
+  });
+
   // Disconnection handler
   socket.on('disconnect', (reason) => {
     console.log(`[Socket Server] Client disconnected: ${socket.id}. Reason: ${reason}`);

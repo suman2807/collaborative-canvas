@@ -22,6 +22,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const strokeValLabel = document.getElementById('width-val');
   const clearBtn = document.getElementById('btn-clear');
 
+  // ==========================================
+  // COLLABORATIVE MEDIATOR BINDINGS
+  // ==========================================
+
+  // 1. Send local drawing steps to peers
+  canvasEngine.on('drawStep', (drawData) => {
+    socketClient.sendDrawing(drawData);
+  });
+
+  // 2. Receive and render remote drawing steps from peers
+  socketClient.on('draw', (remoteData) => {
+    canvasEngine.drawSegment(
+      remoteData.x0,
+      remoteData.y0,
+      remoteData.x1,
+      remoteData.y1,
+      remoteData.color,
+      remoteData.lineWidth
+    );
+  });
+
+  // ==========================================
+  // TOOLBAR INTERACTIONS
+  // ==========================================
+
   /**
    * Update active status styling on tool selection buttons
    */
@@ -50,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setActiveTool(toolBrush);
   });
 
+  // Wire eraser
   toolEraser.addEventListener('click', () => {
     canvasEngine.tool = 'eraser';
     setActiveTool(toolEraser);
@@ -90,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Expose engine and socket globally for debugging / upcoming module integrations
+  // Expose engine and socket globally for debugging
   window.app = {
     canvasEngine,
     socketClient
