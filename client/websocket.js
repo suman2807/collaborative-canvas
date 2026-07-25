@@ -9,7 +9,7 @@ class WebSocketClient {
     
     // Observer Callbacks for canvas synchronization
     this.listeners = {
-      draw: []
+      drawBatch: []
     };
 
     this.init();
@@ -50,9 +50,9 @@ class WebSocketClient {
       this.updateStatus(false);
     });
 
-    // Listen for remote drawing broadcasts from the server
-    this.socket.on('draw', (drawData) => {
-      this.emit('draw', drawData);
+    // Listen for remote drawing batch broadcasts from the server
+    this.socket.on('drawBatch', (batchData) => {
+      this.emit('drawBatch', batchData);
     });
   }
 
@@ -94,11 +94,11 @@ class WebSocketClient {
   }
 
   /**
-   * Emit drawing events to server
+   * Emit drawing batch events to server
    */
-  sendDrawing(drawData) {
+  sendDrawingBatch(batchData) {
     if (this.socket && this.socket.connected) {
-      this.socket.emit('draw', drawData);
+      this.socket.emit('drawBatch', batchData);
     }
   }
 }

@@ -40,10 +40,10 @@ app.get('*', (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[Socket Server] Client connected: ${socket.id}`);
 
-  // Capture real-time drawing coordinates from a client
-  socket.on('draw', (drawData) => {
-    // Relay drawing data to all other connected clients in the lobby
-    socket.broadcast.emit('draw', drawData);
+  // Capture real-time drawing coordinate batches from a client
+  socket.on('drawBatch', (batchData) => {
+    // Relay batch data to all other connected clients in the lobby
+    socket.broadcast.emit('drawBatch', batchData);
   });
 
   // Disconnection handler

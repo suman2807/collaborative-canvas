@@ -16,9 +16,14 @@ class CanvasEngine {
     this.lineWidth = 4;
     this.tool = 'brush'; // 'brush' or 'eraser'
     
+    // Performance Buffering States
+    this.batchBuffer = [];
+    this.flushInterval = null;
+    
     // Observer Callbacks for network broadcasts
     this.listeners = {
-      drawStep: []
+      drawStep: [],
+      drawBatch: []
     };
 
     this.init();
@@ -30,6 +35,7 @@ class CanvasEngine {
   init() {
     this.setupScaling();
     this.attachEventListeners();
+    this.startBufferFlushTimer();
     
     // Listen to resize events and adjust canvas backing scale
     window.addEventListener('resize', () => this.handleResize());
@@ -107,27 +113,34 @@ class CanvasEngine {
   }
 
   /**
-   * Draw a line segment locally, apply changes, and notify listeners
+   * Draw a line segment locally, buffer coordinate positions, and trigger local paints
    */
   draw(x, y) {
     if (!this.isDrawing) return;
 
-    // Construct step payload
-    const drawData = {
+    const strokeColor = this.tool === 'eraser' ? '#0e1117' : this.color;
+
+    // Render segment immediately for zero latency feedback
+    this.drawSegment(this.lastX, this.lastY, x, y, strokeColor, this.lineWidth);
+
+    // Push coordinates to the batch buffer
+    this.batchBuffer.push({
+      x0: this.lastX,
+      y0: this.lastY,
+      x1: x,
+      y1: y
+    });
+
+    // Notify observers that listen to individual steps (like debugging trackers)
+    this.emit('drawStep', {
       x0: this.lastX,
       y0: this.lastY,
       x1: x,
       y1: y,
-      color: this.tool === 'eraser' ? '#0e1117' : this.color, // Eraser matches primary background color
+      color: strokeColor,
       lineWidth: this.lineWidth,
       tool: this.tool
-    };
-
-    // Render the line segment locally
-    this.drawSegment(drawData.x0, drawData.y0, drawData.x1, drawData.y1, drawData.color, drawData.lineWidth);
-
-    // Notify observers (Socket.io connector)
-    this.emit('drawStep', drawData);
+    });
 
     // Shift coordinates
     this.lastX = x;
@@ -144,6 +157,29 @@ class CanvasEngine {
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = width;
     this.ctx.stroke();
+  }
+
+  /**
+   * Periodic flusher timer that bundles drawing segments and transmits them
+   */
+  startBufferFlushTimer() {
+    // Check and flush coordinates at 60Hz (~16ms)
+    this.flushInterval = setInterval(() => {
+      if (this.batchBuffer.length === 0) return;
+
+      const batchPayload = {
+        segments: [...this.batchBuffer],
+        color: this.tool === 'eraser' ? '#0e1117' : this.color,
+        lineWidth: this.lineWidth,
+        tool: this.tool
+      };
+
+      // Emit batch payload to mediator listeners
+      this.emit('drawBatch', batchPayload);
+
+      // Reset local batch buffer
+      this.batchBuffer = [];
+    }, 16);
   }
 
   /**
@@ -207,9 +243,15 @@ class CanvasEngine {
   }
 
   /**
-   * Clear the entire canvas context
+   * Clear the entire canvas context and cancel intervals on teardown
    */
   clear() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  destroy() {
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
+    }
   }
 }

@@ -26,21 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // COLLABORATIVE MEDIATOR BINDINGS
   // ==========================================
 
-  // 1. Send local drawing steps to peers
-  canvasEngine.on('drawStep', (drawData) => {
-    socketClient.sendDrawing(drawData);
+  // 1. Send local drawing coordinate batches to peers
+  canvasEngine.on('drawBatch', (batchData) => {
+    socketClient.sendDrawingBatch(batchData);
   });
 
-  // 2. Receive and render remote drawing steps from peers
-  socketClient.on('draw', (remoteData) => {
-    canvasEngine.drawSegment(
-      remoteData.x0,
-      remoteData.y0,
-      remoteData.x1,
-      remoteData.y1,
-      remoteData.color,
-      remoteData.lineWidth
-    );
+  // 2. Receive and render remote drawing batches from peers
+  socketClient.on('drawBatch', (remoteBatch) => {
+    const { segments, color, lineWidth } = remoteBatch;
+    
+    // Draw each segment in the batch sequentially
+    segments.forEach(segment => {
+      canvasEngine.drawSegment(
+        segment.x0,
+        segment.y0,
+        segment.x1,
+        segment.y1,
+        color,
+        lineWidth
+      );
+    });
   });
 
   // ==========================================
@@ -75,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setActiveTool(toolBrush);
   });
 
-  // Wire eraser
   toolEraser.addEventListener('click', () => {
     canvasEngine.tool = 'eraser';
     setActiveTool(toolEraser);
