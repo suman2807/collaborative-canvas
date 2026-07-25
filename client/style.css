@@ -133,3 +133,187 @@ body {
   cursor: crosshair;
   display: block;
 }
+
+/* Floating Toolbar HUD Container */
+.toolbar-container {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: hsla(220, 20%, 12%, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsla(220, 20%, 20%, 0.5);
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  transition: bottom var(--transition-normal);
+}
+
+/* Groups and Dividers */
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background-color: hsla(220, 20%, 20%, 0.8);
+}
+
+/* Action Buttons & Tool Selectors */
+.tool-btn, .action-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+}
+
+.tool-btn:hover, .action-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.tool-btn.active {
+  background-color: var(--accent-glow);
+  border-color: hsla(255, 85%, 65%, 0.4);
+  color: var(--accent-color);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+#btn-clear:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--danger-color);
+}
+
+/* Color Presets Palette */
+.color-palette {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.color-swatch:hover {
+  transform: scale(1.2);
+}
+
+.color-swatch.active {
+  border-color: var(--text-primary);
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+/* HTML5 Color Input Wrapper overrides */
+.custom-color-wrapper {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid hsla(220, 20%, 30%, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-tertiary);
+}
+
+#color-picker {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.05; /* Keeps color picker clickable while showing custom icon */
+  z-index: 2;
+}
+
+.custom-picker-icon {
+  font-size: 0.75rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Stroke Range Slider styling */
+.slider-group {
+  gap: 12px;
+}
+
+.slider-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+#stroke-width {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--bg-tertiary);
+  outline: none;
+  cursor: pointer;
+}
+
+#stroke-width::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--accent-color);
+  box-shadow: 0 0 8px var(--accent-color);
+  transition: transform var(--transition-normal);
+}
+
+#stroke-width::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.width-preview {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Responsive adjustment */
+@media (max-width: 640px) {
+  .toolbar-container {
+    bottom: 12px;
+    padding: 8px 12px;
+    gap: 8px;
+    max-width: 95%;
+  }
+  #stroke-width {
+    width: 60px;
+  }
+}
