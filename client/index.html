@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoDraw - Collaborative Drawing Board</title>
+  <meta name="description" content="A premium real-time collaborative drawing canvas built with raw HTML5 and Vanilla JS.">
+  
+  <!-- Premium Typography: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header with System Status -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <h1>CoDraw</h1>
+      </div>
+      <div class="status-indicator">
+        <span class="status-dot disconnected" id="connection-status"></span>
+        <span class="status-text">Disconnected</span>
+      </div>
+    </header>
+    
+    <!-- Workspace Main Display -->
+    <main class="app-main">
+      <div class="welcome-card">
+        <h2>Welcome to CoDraw</h2>
+        <p>A real-time collaborative whiteboarding experience designed for teams. System is initializing...</p>
+        <div class="card-action">
+          <span class="badge">Local Dev Server Setup Complete</span>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
