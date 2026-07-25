@@ -317,3 +317,44 @@ body {
     width: 60px;
   }
 }
+
+/* Header Actions Container */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Share Invite Link Button styling */
+.share-btn {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all var(--transition-normal);
+}
+
+.share-btn:hover {
+  background-color: var(--border-color);
+  border-color: hsla(220, 20%, 40%, 0.5);
+  transform: translateY(-1px);
+}
+
+.share-btn:active {
+  transform: translateY(0);
+}
+
+.share-btn.copied {
+  background-color: var(--accent-glow);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}

@@ -2,9 +2,10 @@
  * WebSocketClient - Coordinates connection handshakes, network events, and status updates.
  */
 class WebSocketClient {
-  constructor(statusIndicatorId, statusTextSelector) {
+  constructor(statusIndicatorId, statusTextSelector, roomName) {
     this.statusDot = document.getElementById(statusIndicatorId);
     this.statusText = document.querySelector(statusTextSelector);
+    this.room = roomName;
     this.socket = null;
     
     // Observer Callbacks for canvas synchronization
@@ -36,8 +37,11 @@ class WebSocketClient {
    */
   attachEvents() {
     this.socket.on('connect', () => {
-      console.log(`[Socket Client] Connected. Client Session ID: ${this.socket.id}`);
+      console.log(`[Socket Client] Connected. Session ID: ${this.socket.id}`);
       this.updateStatus(true);
+      
+      // Join the assigned room channel
+      this.socket.emit('joinRoom', { room: this.room });
     });
 
     this.socket.on('disconnect', (reason) => {

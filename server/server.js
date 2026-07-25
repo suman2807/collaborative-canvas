@@ -40,10 +40,26 @@ app.get('*', (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[Socket Server] Client connected: ${socket.id}`);
 
+  // Handle room joining requests
+  socket.on('joinRoom', ({ room }) => {
+    // Leave all previous rooms (except the socket's default individual room)
+    socket.rooms.forEach(currentRoom => {
+      if (currentRoom !== socket.id) {
+        socket.leave(currentRoom);
+      }
+    });
+
+    socket.join(room);
+    socket.currentRoom = room; // Store room reference on the socket object
+    console.log(`[Socket Server] Client ${socket.id} joined room: ${room}`);
+  });
+
   // Capture real-time drawing coordinate batches from a client
   socket.on('drawBatch', (batchData) => {
-    // Relay batch data to all other connected clients in the lobby
-    socket.broadcast.emit('drawBatch', batchData);
+    if (socket.currentRoom) {
+      // Relay only to other sockets in the same room channel
+      socket.to(socket.currentRoom).emit('drawBatch', batchData);
+    }
   });
 
   // Disconnection handler

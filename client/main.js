@@ -5,13 +5,27 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  // ==========================================
+  // ROOM ID PARSER & URL INITIALIZER
+  // ==========================================
+  const urlParams = new URLSearchParams(window.location.search);
+  let room = urlParams.get('room');
+  
+  if (!room) {
+    // Generate a unique 8-character room identifier
+    room = Math.random().toString(36).substring(2, 10);
+    // Replace address bar state dynamically without refreshing
+    const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${room}`;
+    window.history.replaceState({ path: newUrl }, '', newUrl);
+  }
+
   // Initialize CanvasEngine
   const canvasEngine = new CanvasEngine(canvas);
   console.log('[App] Canvas Engine Initialized successfully.');
 
-  // Initialize WebSocket Client
-  const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text');
-  console.log('[App] WebSocket Client Initialized successfully.');
+  // Initialize WebSocket Client with Room parameter
+  const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text', room);
+  console.log(`[App] WebSocket Client Initialized for room: ${room}`);
 
   // DOM Elements binding definitions
   const toolBrush = document.getElementById('tool-brush');
@@ -21,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const strokeSlider = document.getElementById('stroke-width');
   const strokeValLabel = document.getElementById('width-val');
   const clearBtn = document.getElementById('btn-clear');
+  const shareBtn = document.getElementById('btn-share');
 
   // ==========================================
   // COLLABORATIVE MEDIATOR BINDINGS
@@ -49,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ==========================================
-  // TOOLBAR INTERACTIONS
+  // TOOLBAR & ACTIONS INTERACTIONS
   // ==========================================
 
   /**
@@ -118,6 +133,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (confirm('Are you sure you want to clear the entire whiteboard?')) {
       canvasEngine.clear();
     }
+  });
+
+  // Wire Invite Sharing link copier
+  shareBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => {
+        shareBtn.classList.add('copied');
+        const originalText = shareBtn.querySelector('span').textContent;
+        shareBtn.querySelector('span').textContent = 'Link Copied!';
+        
+        // Revert UI state after 2 seconds
+        setTimeout(() => {
+          shareBtn.classList.remove('copied');
+          shareBtn.querySelector('span').textContent = originalText;
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Failed to copy room link to clipboard:', err);
+        alert('Could not copy link automatically. Please copy the URL from your address bar.');
+      });
   });
 
   // Expose engine and socket globally for debugging
