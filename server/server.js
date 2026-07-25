@@ -1,9 +1,17 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const { Server } = require('socket.io'); // Import Socket.io Server API
 
 const app = express();
 const server = http.createServer(app);
+
+// Attach Socket.io Server instance to HTTP server
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Allow all origins for dev simplicity
+  }
+});
 
 // Use environment port or default to 3000
 const PORT = process.env.PORT || 3000;
@@ -28,7 +36,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(clientPath, 'index.html'));
 });
 
-// Start the unified HTTP server
+// Socket.io Connection lifecycle event handlers
+io.on('connection', (socket) => {
+  console.log(`[Socket Server] Client connected: ${socket.id}`);
+
+  // Disconnection handler
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket Server] Client disconnected: ${socket.id}. Reason: ${reason}`);
+  });
+});
+
+// Start the unified HTTP + WS server
 server.listen(PORT, () => {
   console.log(`[Server] Running at http://localhost:${PORT}`);
   console.log(`[Server] Serving static files from: ${clientPath}`);

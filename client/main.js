@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvasEngine = new CanvasEngine(canvas);
   console.log('[App] Canvas Engine Initialized successfully.');
 
+  // Initialize WebSocket Client
+  const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text');
+  console.log('[App] WebSocket Client Initialized successfully.');
+
   // DOM Elements binding definitions
   const toolBrush = document.getElementById('tool-brush');
   const toolEraser = document.getElementById('tool-eraser');
@@ -85,4 +89,10 @@ document.addEventListener('DOMContentLoaded', () => {
       canvasEngine.clear();
     }
   });
+
+  // Expose engine and socket globally for debugging / upcoming module integrations
+  window.app = {
+    canvasEngine,
+    socketClient
+  };
 });

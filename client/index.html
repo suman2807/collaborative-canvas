@@ -84,8 +84,10 @@
     </main>
   </div>
 
-  <!-- Loading scripts -->
+  <!-- Loading scripts (Load socket.io client and custom websocket adapter first) -->
+  <script src="/socket.io/socket.io.js"></script>
   <script src="canvas.js"></script>
+  <script src="websocket.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
