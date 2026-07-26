@@ -16,8 +16,7 @@ class WebSocketClient {
       strokeEnd: [],
       undo: [],
       redo: [],
-      requestCanvasState: [],
-      receiveCanvasState: [],
+      roomHistory: [],
       roomCountUpdate: []
     };
 
@@ -92,14 +91,9 @@ class WebSocketClient {
       this.emit('redo');
     });
 
-    // Listen for state requests (acting as host)
-    this.socket.on('requestCanvasState', (data) => {
-      this.emit('requestCanvasState', data);
-    });
-
-    // Listen for state transmissions (acting as new requester)
-    this.socket.on('receiveCanvasState', (data) => {
-      this.emit('receiveCanvasState', data);
+    // Listen for room drawing history dump (Session Persistence)
+    this.socket.on('roomHistory', (historyData) => {
+      this.emit('roomHistory', historyData);
     });
 
     // Listen for room client count updates
@@ -194,11 +188,20 @@ class WebSocketClient {
   }
 
   /**
-   * Send canvas PNG URL back to requester client
+   * Emit clear canvas notifications
    */
-  sendCanvasState(requesterId, stateUrl) {
+  sendClear() {
     if (this.socket && this.socket.connected) {
-      this.socket.emit('sendCanvasState', { requesterId, stateUrl });
+      this.socket.emit('clear');
+    }
+  }
+
+  /**
+   * Emit connection test ping
+   */
+  sendPing(callback) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('ping', callback);
     }
   }
 }

@@ -432,3 +432,59 @@ body {
   display: inline-block;
   vertical-align: middle;
 }
+
+/* Glassmorphism Performance HUD Panel styling */
+.performance-hud {
+  position: fixed;
+  top: 90px; /* Positions below header bar */
+  right: 24px;
+  background: rgba(14, 17, 23, 0.7);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  transition: all var(--transition-normal);
+  pointer-events: none; /* Clicks bypass panel */
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.metric-dot.fps {
+  background-color: #10b981; /* Green */
+  box-shadow: 0 0 6px #10b981;
+}
+
+.metric-dot.ping {
+  background-color: #3b82f6; /* Blue */
+  box-shadow: 0 0 6px #3b82f6;
+}
+
+.metric-value {
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.metric-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--border-color);
+}

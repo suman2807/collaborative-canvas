@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io'); // Import Socket.io Server API
 
 const app = express();
@@ -16,8 +17,29 @@ const io = new Server(server, {
 // Use environment port or default to 3000
 const PORT = process.env.PORT || 3000;
 
-// Resolve client static folder path
+// Resolve client static folder and data persistence folder paths
 const clientPath = path.join(__dirname, '../client');
+const dataDirPath = path.join(__dirname, 'data');
+
+// Create data persistence directory if it does not exist
+if (!fs.existsSync(dataDirPath)) {
+  fs.mkdirSync(dataDirPath, { recursive: true });
+}
+
+// In-memory caches for room drawing histories
+const roomHistories = {}; // roomID -> Array of completed strokes (each stroke is an array of coordinate batches)
+const activeStrokes = {}; // roomID -> Array of batches in the currently active stroke
+
+// Helper: Async write room history to disk
+const saveRoomHistoryToDisk = (room) => {
+  const filePath = path.join(dataDirPath, `${room}.json`);
+  const data = JSON.stringify(roomHistories[room] || []);
+  fs.writeFile(filePath, data, 'utf8', (err) => {
+    if (err) {
+      console.error(`[Server] Failed to write history file for room ${room}:`, err);
+    }
+  });
+};
 
 // Middleware to serve static files from the client directory
 app.use(express.static(clientPath));
@@ -58,20 +80,24 @@ io.on('connection', (socket) => {
     const count = roomClients ? roomClients.size : 0;
     io.to(room).emit('roomCountUpdate', { count });
 
-    // P2P State Bootstrapping: Check if there are other clients in the room
-    if (roomClients && roomClients.size > 1) {
-      let hostId = null;
-      for (const clientId of roomClients) {
-        if (clientId !== socket.id) {
-          hostId = clientId;
-          break;
+    // Load room history from disk if not present in memory cache
+    if (!roomHistories[room]) {
+      const filePath = path.join(dataDirPath, `${room}.json`);
+      if (fs.existsSync(filePath)) {
+        try {
+          const fileData = fs.readFileSync(filePath, 'utf8');
+          roomHistories[room] = JSON.parse(fileData);
+        } catch (err) {
+          console.error(`[Server] Failed to parse history file for room ${room}:`, err);
+          roomHistories[room] = [];
         }
-      }
-      if (hostId) {
-        console.log(`[Socket Server] Requesting state from host ${hostId} for new client ${socket.id}`);
-        io.to(hostId).emit('requestCanvasState', { requesterId: socket.id });
+      } else {
+        roomHistories[room] = [];
       }
     }
+
+    // Send saved drawing history to the joining client
+    socket.emit('roomHistory', roomHistories[room]);
   });
 
   // Capture real-time drawing coordinate batches from a client
@@ -79,19 +105,41 @@ io.on('connection', (socket) => {
     if (socket.currentRoom) {
       // Relay only to other sockets in the same room channel
       socket.to(socket.currentRoom).emit('drawBatch', batchData);
+
+      // Append batch data to the currently active stroke sequence
+      if (!activeStrokes[socket.currentRoom]) {
+        activeStrokes[socket.currentRoom] = [];
+      }
+      activeStrokes[socket.currentRoom].push(batchData);
     }
   });
 
-  // Relay strokeEnd trigger notifications
+  // Relay strokeEnd trigger notifications and commit active stroke to history
   socket.on('strokeEnd', () => {
     if (socket.currentRoom) {
       socket.to(socket.currentRoom).emit('strokeEnd');
+
+      const stroke = activeStrokes[socket.currentRoom];
+      if (stroke && stroke.length > 0) {
+        if (!roomHistories[socket.currentRoom]) {
+          roomHistories[socket.currentRoom] = [];
+        }
+        roomHistories[socket.currentRoom].push(stroke);
+        activeStrokes[socket.currentRoom] = []; // Clear active stroke accumulator
+
+        // Save committed changes to disk
+        saveRoomHistoryToDisk(socket.currentRoom);
+      }
     }
   });
 
-  // Relay undo command events
+  // Relay undo command events and adjust history index
   socket.on('undo', () => {
     if (socket.currentRoom) {
+      if (roomHistories[socket.currentRoom] && roomHistories[socket.currentRoom].length > 0) {
+        roomHistories[socket.currentRoom].pop(); // Pop last completed stroke
+        saveRoomHistoryToDisk(socket.currentRoom);
+      }
       socket.to(socket.currentRoom).emit('undo');
     }
   });
@@ -103,9 +151,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Forward captured canvas state from host to requester
-  socket.on('sendCanvasState', ({ requesterId, stateUrl }) => {
-    io.to(requesterId).emit('receiveCanvasState', { stateUrl });
+  // Handle client canvas clear commands
+  socket.on('clear', () => {
+    if (socket.currentRoom) {
+      roomHistories[socket.currentRoom] = [];
+      activeStrokes[socket.currentRoom] = [];
+      
+      // Delete persistence file if it exists
+      const filePath = path.join(dataDirPath, `${socket.currentRoom}.json`);
+      if (fs.existsSync(filePath)) {
+        fs.unlink(filePath, (err) => {
+          if (err) console.error(`[Server] Failed to delete history file for room ${socket.currentRoom}:`, err);
+        });
+      }
+
+      socket.to(socket.currentRoom).emit('clear');
+    }
   });
 
   // Relay pointer cursor updates
@@ -117,6 +178,13 @@ io.on('connection', (socket) => {
         x: coords.x,
         y: coords.y
       });
+    }
+  });
+
+  // Respond to connection latency pings
+  socket.on('ping', (callback) => {
+    if (typeof callback === 'function') {
+      callback();
     }
   });
 

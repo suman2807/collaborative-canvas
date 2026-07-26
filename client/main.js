@@ -40,6 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoBtn = document.getElementById('btn-redo');
   const cursorsContainer = document.getElementById('cursors-container');
   const userCountBadge = document.getElementById('user-count');
+  
+  // Performance HUD Elements
+  const fpsLabel = document.getElementById('fps-val');
+  const pingLabel = document.getElementById('ping-val');
 
   // ==========================================
   // COLLABORATIVE MEDIATOR BINDINGS
@@ -97,34 +101,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ==========================================
-  // P2P STATE SYNCHRONIZATION BINDINGS
-  // ==========================================
-
-  // Host listener: captures and sends state to requester
-  socketClient.on('requestCanvasState', ({ requesterId }) => {
-    console.log(`[App] Host: Capturing canvas state snapshot for client ${requesterId}`);
-    const stateUrl = canvas.toDataURL();
-    socketClient.sendCanvasState(requesterId, stateUrl);
+  // 8. Load persistent room history from server on join
+  socketClient.on('roomHistory', (strokes) => {
+    console.log(`[App] Loading ${strokes.length} historical strokes from server persistence...`);
+    canvasEngine.clear();
+    
+    // Draw historical strokes sequentially and populate local history stack
+    strokes.forEach(stroke => {
+      stroke.forEach(batch => {
+        batch.segments.forEach(segment => {
+          canvasEngine.drawSegment(
+            segment.x0,
+            segment.y0,
+            segment.x1,
+            segment.y1,
+            batch.color,
+            batch.lineWidth
+          );
+        });
+      });
+      // Snapshots state change in local history buffers
+      canvasEngine.saveHistoryState();
+    });
   });
 
-  // Requester listener: paints received state onto blank canvas
-  socketClient.on('receiveCanvasState', ({ stateUrl }) => {
-    console.log('[App] Requester: Received canvas state snapshot. Painting canvas...');
-    const img = new Image();
-    img.onload = () => {
-      canvasEngine.ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const dpr = window.devicePixelRatio || 1;
-      // Draw correctly scaled high-DPI image representation
-      canvasEngine.ctx.drawImage(img, 0, 0, canvas.width / dpr, canvas.height / dpr);
-      
-      // Seed history stack using current loaded bitmap
-      canvasEngine.history = [canvasEngine.ctx.getImageData(0, 0, canvas.width, canvas.height)];
-      canvasEngine.historyIndex = 0;
-      console.log('[App] Canvas state successfully synchronized from peer.');
-    };
-    img.src = stateUrl;
+  // 9. Listen for remote clear canvas commands
+  socketClient.on('clear', () => {
+    console.log('[App] Remote clear command received.');
+    canvasEngine.clear();
+    canvasEngine.saveHistoryState();
   });
+
+  // ==========================================
+  // PERFORMANCE METRICS HUD LOOPS
+  // ==========================================
+
+  // A. FPS counter loop
+  let frameCount = 0;
+  let lastFpsUpdate = performance.now();
+
+  const calculateFps = () => {
+    frameCount++;
+    const now = performance.now();
+    if (now - lastFpsUpdate >= 1000) {
+      const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+      fpsLabel.textContent = `${fps} FPS`;
+      frameCount = 0;
+      lastFpsUpdate = now;
+    }
+    requestAnimationFrame(calculateFps);
+  };
+  requestAnimationFrame(calculateFps);
+
+  // B. Latency (Ping) heartbeat ticker
+  setInterval(() => {
+    if (socketClient.socket && socketClient.socket.connected) {
+      const start = performance.now();
+      socketClient.sendPing(() => {
+        const rtt = Math.round(performance.now() - start);
+        pingLabel.textContent = `${rtt} ms`;
+      });
+    } else {
+      pingLabel.textContent = '-- ms';
+    }
+  }, 2000);
 
   // ==========================================
   // PEER CURSOR TRACKING LOGIC
@@ -284,13 +324,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Wire local canvas clear triggers
+  // Wire local and global canvas clear triggers
   clearBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to clear the entire whiteboard?')) {
       canvasEngine.clear();
       // Snapshots state change in local history buffers
       canvasEngine.saveHistoryState();
-      socketClient.sendStrokeEnd();
+      socketClient.sendClear();
     }
   });
 
