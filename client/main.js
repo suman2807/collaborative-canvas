@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements binding definitions
   const toolBrush = document.getElementById('tool-brush');
   const toolEraser = document.getElementById('tool-eraser');
+  const toolLine = document.getElementById('tool-line');
+  const toolRect = document.getElementById('tool-rect');
+  const toolCircle = document.getElementById('tool-circle');
   const colorSwatches = document.querySelectorAll('.color-swatch');
   const colorPicker = document.getElementById('color-picker');
   const strokeSlider = document.getElementById('stroke-width');
@@ -54,21 +57,36 @@ document.addEventListener('DOMContentLoaded', () => {
     socketClient.sendDrawingBatch(batchData);
   });
 
-  // 2. Receive and render remote drawing batches from peers
+  // 2. Receive and render remote drawing batches from peers (freehand or shapes)
   socketClient.on('drawBatch', (remoteBatch) => {
-    const { segments, color, lineWidth } = remoteBatch;
+    const { shapeType, color, lineWidth } = remoteBatch;
     
-    // Draw each segment in the batch sequentially
-    segments.forEach(segment => {
-      canvasEngine.drawSegment(
-        segment.x0,
-        segment.y0,
-        segment.x1,
-        segment.y1,
-        color,
-        lineWidth
-      );
-    });
+    if (!shapeType || shapeType === 'path') {
+      const { segments } = remoteBatch;
+      if (segments) {
+        segments.forEach(segment => {
+          canvasEngine.drawSegment(
+            segment.x0,
+            segment.y0,
+            segment.x1,
+            segment.y1,
+            color,
+            lineWidth
+          );
+        });
+      }
+    } else {
+      if (shapeType === 'line') {
+        canvasEngine.drawShapeOutline('line', remoteBatch.x0, remoteBatch.y0, remoteBatch.x1, remoteBatch.y1, color, lineWidth);
+      } else if (shapeType === 'rect') {
+        canvasEngine.drawShapeOutline('rect', remoteBatch.x, remoteBatch.y, remoteBatch.x + remoteBatch.w, remoteBatch.y + remoteBatch.h, color, lineWidth);
+      } else if (shapeType === 'circle') {
+        // Compute end coordinates representing radius distance
+        const x1 = remoteBatch.cx + remoteBatch.r;
+        const y1 = remoteBatch.cy;
+        canvasEngine.drawShapeOutline('circle', remoteBatch.cx, remoteBatch.cy, x1, y1, color, lineWidth);
+      }
+    }
   });
 
   // 3. Emit local stroke completion signals
@@ -109,16 +127,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Draw historical strokes sequentially and populate local history stack
     strokes.forEach(stroke => {
       stroke.forEach(batch => {
-        batch.segments.forEach(segment => {
-          canvasEngine.drawSegment(
-            segment.x0,
-            segment.y0,
-            segment.x1,
-            segment.y1,
-            batch.color,
-            batch.lineWidth
-          );
-        });
+        const { shapeType, color, lineWidth } = batch;
+        if (!shapeType || shapeType === 'path') {
+          if (batch.segments) {
+            batch.segments.forEach(segment => {
+              canvasEngine.drawSegment(
+                segment.x0,
+                segment.y0,
+                segment.x1,
+                segment.y1,
+                color,
+                lineWidth
+              );
+            });
+          }
+        } else {
+          if (shapeType === 'line') {
+            canvasEngine.drawShapeOutline('line', batch.x0, batch.y0, batch.x1, batch.y1, color, lineWidth);
+          } else if (shapeType === 'rect') {
+            canvasEngine.drawShapeOutline('rect', batch.x, batch.y, batch.x + batch.w, batch.y + batch.h, color, lineWidth);
+          } else if (shapeType === 'circle') {
+            canvasEngine.drawShapeOutline('circle', batch.cx, batch.cy, batch.cx + batch.r, batch.cy, color, lineWidth);
+          }
+        }
       });
       // Snapshots state change in local history buffers
       canvasEngine.saveHistoryState();
@@ -255,6 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const setActiveTool = (activeBtn) => {
     toolBrush.classList.remove('active');
     toolEraser.classList.remove('active');
+    toolLine.classList.remove('active');
+    toolRect.classList.remove('active');
+    toolCircle.classList.remove('active');
     activeBtn.classList.add('active');
   };
 
@@ -282,13 +316,31 @@ document.addEventListener('DOMContentLoaded', () => {
     setActiveTool(toolEraser);
   });
 
+  toolLine.addEventListener('click', () => {
+    canvasEngine.tool = 'line';
+    setActiveTool(toolLine);
+  });
+
+  toolRect.addEventListener('click', () => {
+    canvasEngine.tool = 'rect';
+    setActiveTool(toolRect);
+  });
+
+  toolCircle.addEventListener('click', () => {
+    canvasEngine.tool = 'circle';
+    setActiveTool(toolCircle);
+  });
+
   // Wire preset color palette swatches
   colorSwatches.forEach(swatch => {
     swatch.addEventListener('click', (e) => {
       const selectedColor = e.target.getAttribute('data-color');
       canvasEngine.color = selectedColor;
-      canvasEngine.tool = 'brush'; // Selecting color resets to brush mode
-      setActiveTool(toolBrush);
+      // Selecting color resets to brush mode if in eraser mode, but preserves shape tools
+      if (canvasEngine.tool === 'eraser') {
+        canvasEngine.tool = 'brush';
+        setActiveTool(toolBrush);
+      }
       setActiveSwatch(selectedColor);
       colorPicker.value = selectedColor; // Sync picker element
     });
@@ -298,8 +350,10 @@ document.addEventListener('DOMContentLoaded', () => {
   colorPicker.addEventListener('input', (e) => {
     const selectedColor = e.target.value;
     canvasEngine.color = selectedColor;
-    canvasEngine.tool = 'brush';
-    setActiveTool(toolBrush);
+    if (canvasEngine.tool === 'eraser') {
+      canvasEngine.tool = 'brush';
+      setActiveTool(toolBrush);
+    }
     setActiveSwatch(selectedColor); // Removes selection if picker deviates from preset swatches
   });
 

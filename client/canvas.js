@@ -8,13 +8,15 @@ class CanvasEngine {
     
     // Core Engine State
     this.isDrawing = false;
+    this.startX = 0;
+    this.startY = 0;
     this.lastX = 0;
     this.lastY = 0;
     
     // Current Drawing Config Defaults
     this.color = '#a855f7'; // Purple accent
     this.lineWidth = 4;
-    this.tool = 'brush'; // 'brush' or 'eraser'
+    this.tool = 'brush'; // 'brush', 'eraser', 'line', 'rect', 'circle'
     
     // Performance Buffering States
     this.batchBuffer = [];
@@ -25,6 +27,9 @@ class CanvasEngine {
     this.historyIndex = -1;
     this.maxHistory = 30; // Max stored canvas snapshots to control memory allocation
     
+    // Interactive Shape Preview Snapshot
+    this.previewSnapshot = null;
+
     // Observer Callbacks for network broadcasts
     this.listeners = {
       drawStep: [],
@@ -119,43 +124,61 @@ class CanvasEngine {
    */
   startDrawing(x, y) {
     this.isDrawing = true;
+    this.startX = x;
+    this.startY = y;
     this.lastX = x;
     this.lastY = y;
+
+    // Save full canvas snapshot for preview rendering if drawing a shape
+    if (this.tool !== 'brush' && this.tool !== 'eraser') {
+      this.previewSnapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    }
   }
 
   /**
-   * Draw a line segment locally, buffer coordinate positions, and trigger local paints
+   * Draw a line segment or render shape previews locally
    */
   draw(x, y) {
     if (!this.isDrawing) return;
 
-    const strokeColor = this.tool === 'eraser' ? '#0e1117' : this.color;
-
-    // Render segment immediately for zero latency feedback
-    this.drawSegment(this.lastX, this.lastY, x, y, strokeColor, this.lineWidth);
-
-    // Push coordinates to the batch buffer
-    this.batchBuffer.push({
-      x0: this.lastX,
-      y0: this.lastY,
-      x1: x,
-      y1: y
-    });
-
-    // Notify observers that listen to individual steps (like debugging trackers)
-    this.emit('drawStep', {
-      x0: this.lastX,
-      y0: this.lastY,
-      x1: x,
-      y1: y,
-      color: strokeColor,
-      lineWidth: this.lineWidth,
-      tool: this.tool
-    });
-
-    // Shift coordinates
     this.lastX = x;
     this.lastY = y;
+
+    const strokeColor = this.tool === 'eraser' ? '#0e1117' : this.color;
+
+    if (this.tool === 'brush' || this.tool === 'eraser') {
+      // Render segment immediately for zero latency feedback
+      this.drawSegment(this.startX, this.startY, x, y, strokeColor, this.lineWidth);
+
+      // Push coordinates to the batch buffer
+      this.batchBuffer.push({
+        x0: this.startX,
+        y0: this.startY,
+        x1: x,
+        y1: y
+      });
+
+      // Notify observers that listen to individual steps (like debugging trackers)
+      this.emit('drawStep', {
+        x0: this.startX,
+        y0: this.startY,
+        x1: x,
+        y1: y,
+        color: strokeColor,
+        lineWidth: this.lineWidth,
+        tool: this.tool
+      });
+
+      // Shift coordinates for freehand drawing
+      this.startX = x;
+      this.startY = y;
+    } else {
+      // Render shape preview by first restoring canvas back to starting snapshot
+      this.ctx.putImageData(this.previewSnapshot, 0, 0);
+
+      // Render shape outline
+      this.drawShapeOutline(this.tool, this.startX, this.startY, x, y, strokeColor, this.lineWidth);
+    }
   }
 
   /**
@@ -167,6 +190,27 @@ class CanvasEngine {
     this.ctx.lineTo(x1, y1);
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = width;
+    this.ctx.stroke();
+  }
+
+  /**
+   * Render a specific shape outline to the 2D context
+   */
+  drawShapeOutline(shapeType, x0, y0, x1, y1, color, width) {
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = width;
+
+    if (shapeType === 'line') {
+      this.ctx.moveTo(x0, y0);
+      this.ctx.lineTo(x1, y1);
+    } else if (shapeType === 'rect') {
+      this.ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    } else if (shapeType === 'circle') {
+      const radius = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2);
+      this.ctx.arc(x0, y0, radius, 0, 2 * Math.PI);
+    }
+
     this.ctx.stroke();
   }
 
@@ -226,6 +270,7 @@ class CanvasEngine {
       if (this.batchBuffer.length === 0) return;
 
       const batchPayload = {
+        shapeType: 'path',
         segments: [...this.batchBuffer],
         color: this.tool === 'eraser' ? '#0e1117' : this.color,
         lineWidth: this.lineWidth,
@@ -241,11 +286,47 @@ class CanvasEngine {
   }
 
   /**
-   * Stop the drawing sequence
+   * Stop the drawing sequence and commit shape states
    */
   stopDrawing() {
     if (this.isDrawing) {
       this.isDrawing = false;
+
+      // Handle final shapes commit & broadcast
+      if (this.tool !== 'brush' && this.tool !== 'eraser') {
+        const strokeColor = this.color;
+        
+        // Paint shape permanently
+        this.ctx.putImageData(this.previewSnapshot, 0, 0);
+        this.drawShapeOutline(this.tool, this.startX, this.startY, this.lastX, this.lastY, strokeColor, this.lineWidth);
+
+        // Compile coordinates for shape batch payload
+        let shapePayload = {
+          shapeType: this.tool,
+          color: strokeColor,
+          lineWidth: this.lineWidth
+        };
+
+        if (this.tool === 'line') {
+          shapePayload.x0 = this.startX;
+          shapePayload.y0 = this.startY;
+          shapePayload.x1 = this.lastX;
+          shapePayload.y1 = this.lastY;
+        } else if (this.tool === 'rect') {
+          shapePayload.x = this.startX;
+          shapePayload.y = this.startY;
+          shapePayload.w = this.lastX - this.startX;
+          shapePayload.h = this.lastY - this.startY;
+        } else if (this.tool === 'circle') {
+          shapePayload.cx = this.startX;
+          shapePayload.cy = this.startY;
+          shapePayload.r = Math.sqrt((this.lastX - this.startX) ** 2 + (this.lastY - this.startY) ** 2);
+        }
+
+        // Emit shape payload
+        this.emit('drawBatch', shapePayload);
+      }
+
       this.saveHistoryState();
       this.emit('strokeEnd');
     }
