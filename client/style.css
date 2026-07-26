@@ -507,4 +507,70 @@ body {
   box-shadow: 0 0 12px var(--accent-glow);
   z-index: 50;
 }
+/* User List Hover Dropdown styling */
+.user-list-container {
+  position: relative;
+  display: inline-block;
+}
 
+.user-list-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: rgba(14, 17, 23, 0.95);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  min-width: 180px;
+  box-shadow: var(--shadow-lg);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 120;
+}
+
+/* Show dropdown on parent hover */
+.user-list-container:hover .user-list-dropdown {
+  display: flex;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.user-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.user-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.user-item-label {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.user-item-you {
+  background-color: var(--accent-glow);
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+}

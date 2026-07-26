@@ -81,6 +81,15 @@ io.on('connection', (socket) => {
     const count = roomClients ? roomClients.size : 0;
     io.to(room).emit('roomCountUpdate', { count });
 
+    // Compile and broadcast updated list of active user IDs in the room
+    const users = [];
+    if (roomClients) {
+      for (const clientId of roomClients) {
+        users.push({ id: clientId });
+      }
+    }
+    io.to(room).emit('roomUsersUpdate', { users });
+
     // Load room history from disk if not present in memory cache
     if (!roomHistories[room]) {
       const filePath = path.join(dataDirPath, `${room}.json`);
@@ -222,6 +231,17 @@ io.on('connection', (socket) => {
         // Notify other clients about count and user departure
         socket.to(currentRoom).emit('roomCountUpdate', { count });
         socket.to(currentRoom).emit('userLeft', socket.id);
+
+        // Compile and broadcast updated list of active user IDs in the room (excluding this socket)
+        const users = [];
+        if (roomClients) {
+          for (const clientId of roomClients) {
+            if (clientId !== socket.id) {
+              users.push({ id: clientId });
+            }
+          }
+        }
+        socket.to(currentRoom).emit('roomUsersUpdate', { users });
       }
     });
   });

@@ -29,7 +29,12 @@
         <div class="status-indicator">
           <span class="status-dot disconnected" id="connection-status"></span>
           <span class="status-text">Disconnected</span>
-          <span class="user-count-badge" id="user-count" style="display: none;">1 Online</span>
+          <div class="user-list-container">
+            <span class="user-count-badge" id="user-count" style="display: none;">1 Online</span>
+            <div class="user-list-dropdown" id="user-list-dropdown">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
         </div>
       </div>
     </header>

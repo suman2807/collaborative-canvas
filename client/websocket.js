@@ -17,7 +17,8 @@ class WebSocketClient {
       undo: [],
       redo: [],
       roomHistory: [],
-      roomCountUpdate: []
+      roomCountUpdate: [],
+      roomUsersUpdate: []
     };
 
     this.init();
@@ -99,6 +100,11 @@ class WebSocketClient {
     // Listen for room client count updates
     this.socket.on('roomCountUpdate', (data) => {
       this.emit('roomCountUpdate', data);
+    });
+
+    // Listen for active users updates
+    this.socket.on('roomUsersUpdate', (data) => {
+      this.emit('roomUsersUpdate', data);
     });
   }
 

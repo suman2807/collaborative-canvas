@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoBtn = document.getElementById('btn-redo');
   const cursorsContainer = document.getElementById('cursors-container');
   const userCountBadge = document.getElementById('user-count');
+  const userListDropdown = document.getElementById('user-list-dropdown');
   
   // Performance HUD Elements
   const fpsLabel = document.getElementById('fps-val');
@@ -124,6 +125,40 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       userCountBadge.style.display = 'none';
     }
+  });
+
+  // 7.1. Handle active room user list updates
+  socketClient.on('roomUsersUpdate', ({ users }) => {
+    userListDropdown.innerHTML = '';
+    
+    users.forEach(u => {
+      const isYou = u.id === socketClient.socket.id;
+      const userColor = getDeterministicColor(u.id);
+      
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      
+      const dot = document.createElement('span');
+      dot.className = 'user-item-dot';
+      dot.style.color = userColor;
+      dot.style.backgroundColor = userColor;
+      
+      const label = document.createElement('span');
+      label.className = 'user-item-label';
+      label.textContent = isYou ? 'You' : `User-${u.id.substring(0, 4)}`;
+      
+      item.appendChild(dot);
+      item.appendChild(label);
+      
+      if (isYou) {
+        const youBadge = document.createElement('span');
+        youBadge.className = 'user-item-you';
+        youBadge.textContent = 'YOU';
+        item.appendChild(youBadge);
+      }
+      
+      userListDropdown.appendChild(item);
+    });
   });
 
   // 8. Load persistent room history from server on join
