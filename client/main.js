@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const strokeValLabel = document.getElementById('width-val');
   const clearBtn = document.getElementById('btn-clear');
   const shareBtn = document.getElementById('btn-share');
+  const exportBtn = document.getElementById('btn-export');
   const undoBtn = document.getElementById('btn-undo');
   const redoBtn = document.getElementById('btn-redo');
   const cursorsContainer = document.getElementById('cursors-container');
@@ -481,6 +482,30 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Failed to copy room link to clipboard:', err);
         alert('Could not copy link automatically. Please copy the URL from your address bar.');
       });
+  });
+
+  // Wire Export PNG button click listener
+  exportBtn.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
+    
+    // Create a temporary compositing canvas to paint a solid background
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const exportCtx = exportCanvas.getContext('2d');
+    
+    // Fill background with theme color matching style.css #0e1117 background
+    exportCtx.fillStyle = '#0e1117';
+    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    
+    // Draw active drawing layer
+    exportCtx.drawImage(canvas, 0, 0);
+    
+    // Trigger download sequence
+    const link = document.createElement('a');
+    link.download = `codraw-room-${room}-${Date.now()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
   });
 
   // Expose engine and socket globally for debugging
