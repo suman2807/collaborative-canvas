@@ -28,6 +28,7 @@ if (!fs.existsSync(dataDirPath)) {
 
 // In-memory caches for room drawing histories
 const roomHistories = {}; // roomID -> Array of completed strokes (each stroke is an array of coordinate batches)
+const roomRedoHistories = {}; // roomID -> Array of undone strokes (each stroke is an array of coordinate batches)
 const activeStrokes = {}; // roomID -> Array of batches in the currently active stroke
 
 // Helper: Async write room history to disk
@@ -127,6 +128,9 @@ io.on('connection', (socket) => {
         roomHistories[socket.currentRoom].push(stroke);
         activeStrokes[socket.currentRoom] = []; // Clear active stroke accumulator
 
+        // Clear redo stack on new stroke entry
+        roomRedoHistories[socket.currentRoom] = [];
+
         // Save committed changes to disk
         saveRoomHistoryToDisk(socket.currentRoom);
       }
@@ -137,7 +141,13 @@ io.on('connection', (socket) => {
   socket.on('undo', () => {
     if (socket.currentRoom) {
       if (roomHistories[socket.currentRoom] && roomHistories[socket.currentRoom].length > 0) {
-        roomHistories[socket.currentRoom].pop(); // Pop last completed stroke
+        const undoneStroke = roomHistories[socket.currentRoom].pop(); // Pop last completed stroke
+        
+        if (!roomRedoHistories[socket.currentRoom]) {
+          roomRedoHistories[socket.currentRoom] = [];
+        }
+        roomRedoHistories[socket.currentRoom].push(undoneStroke); // Save to redo stack
+        
         saveRoomHistoryToDisk(socket.currentRoom);
       }
       socket.to(socket.currentRoom).emit('undo');
@@ -147,6 +157,16 @@ io.on('connection', (socket) => {
   // Relay redo command events
   socket.on('redo', () => {
     if (socket.currentRoom) {
+      if (roomRedoHistories[socket.currentRoom] && roomRedoHistories[socket.currentRoom].length > 0) {
+        const redoneStroke = roomRedoHistories[socket.currentRoom].pop(); // Pop from redo stack
+        
+        if (!roomHistories[socket.currentRoom]) {
+          roomHistories[socket.currentRoom] = [];
+        }
+        roomHistories[socket.currentRoom].push(redoneStroke); // Push back to active history
+        
+        saveRoomHistoryToDisk(socket.currentRoom);
+      }
       socket.to(socket.currentRoom).emit('redo');
     }
   });
@@ -156,6 +176,7 @@ io.on('connection', (socket) => {
     if (socket.currentRoom) {
       roomHistories[socket.currentRoom] = [];
       activeStrokes[socket.currentRoom] = [];
+      roomRedoHistories[socket.currentRoom] = [];
       
       // Delete persistence file if it exists
       const filePath = path.join(dataDirPath, `${socket.currentRoom}.json`);
