@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const toolRect = document.getElementById('tool-rect');
   const toolCircle = document.getElementById('tool-circle');
   const toolText = document.getElementById('tool-text');
+  const toolImage = document.getElementById('tool-image');
+  const imageLoader = document.getElementById('image-loader');
   const colorSwatches = document.querySelectorAll('.color-swatch');
   const colorPicker = document.getElementById('color-picker');
   const strokeSlider = document.getElementById('stroke-width');
@@ -58,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socketClient.sendDrawingBatch(batchData);
   });
 
-  // 2. Receive and render remote drawing batches from peers (freehand or shapes)
+  // 2. Receive and render remote drawing batches from peers (freehand, shapes, or images)
   socketClient.on('drawBatch', (remoteBatch) => {
     const { shapeType, color, lineWidth } = remoteBatch;
     
@@ -88,6 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEngine.drawShapeOutline('circle', remoteBatch.cx, remoteBatch.cy, x1, y1, color, lineWidth);
       } else if (shapeType === 'text') {
         canvasEngine.drawText(remoteBatch.text, remoteBatch.x, remoteBatch.y, color, remoteBatch.fontSize);
+      } else if (shapeType === 'image') {
+        canvasEngine.drawImage(remoteBatch.dataUrl, remoteBatch.x, remoteBatch.y, remoteBatch.w, remoteBatch.h);
       }
     }
   });
@@ -153,6 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasEngine.drawShapeOutline('circle', batch.cx, batch.cy, batch.cx + batch.r, batch.cy, color, lineWidth);
           } else if (shapeType === 'text') {
             canvasEngine.drawText(batch.text, batch.x, batch.y, color, batch.fontSize);
+          } else if (shapeType === 'image') {
+            canvasEngine.drawImage(batch.dataUrl, batch.x, batch.y, batch.w, batch.h);
           }
         }
       });
@@ -295,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toolRect.classList.remove('active');
     toolCircle.classList.remove('active');
     toolText.classList.remove('active');
+    toolImage.classList.remove('active');
     activeBtn.classList.add('active');
   };
 
@@ -345,6 +352,23 @@ document.addEventListener('DOMContentLoaded', () => {
   toolText.addEventListener('click', () => {
     canvasEngine.tool = 'text';
     setActiveTool(toolText);
+  });
+
+  // Trigger file selection for image insertions
+  toolImage.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
+    imageLoader.click();
+  });
+
+  // Handle image loading, resizing and compression on file selection
+  imageLoader.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      canvasEngine.compressAndInsertImage(file, () => {
+        // Reset loader value so same file can be re-uploaded
+        imageLoader.value = '';
+      });
+    }
   });
 
   // Wire preset color palette swatches

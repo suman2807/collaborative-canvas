@@ -16,7 +16,7 @@ class CanvasEngine {
     // Current Drawing Config Defaults
     this.color = '#a855f7'; // Purple accent
     this.lineWidth = 4;
-    this.tool = 'brush'; // 'brush', 'eraser', 'line', 'rect', 'circle', 'text'
+    this.tool = 'brush'; // 'brush', 'eraser', 'line', 'rect', 'circle', 'text', 'image'
     
     // Performance Buffering States
     this.batchBuffer = [];
@@ -130,7 +130,7 @@ class CanvasEngine {
     this.lastY = y;
 
     // Save full canvas snapshot for preview rendering if drawing a shape
-    if (this.tool !== 'brush' && this.tool !== 'eraser' && this.tool !== 'text') {
+    if (this.tool !== 'brush' && this.tool !== 'eraser' && this.tool !== 'text' && this.tool !== 'image') {
       this.previewSnapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     }
   }
@@ -140,7 +140,7 @@ class CanvasEngine {
    */
   draw(x, y) {
     if (!this.isDrawing) return;
-    if (this.tool === 'text') return; // Skip drag movement operations for text mode
+    if (this.tool === 'text' || this.tool === 'image') return; // Skip drag movement operations
 
     this.lastX = x;
     this.lastY = y;
@@ -223,6 +223,85 @@ class CanvasEngine {
     this.ctx.fillStyle = color;
     this.ctx.textBaseline = 'top';
     this.ctx.fillText(text, x, y);
+  }
+
+  /**
+   * Render an image onto the canvas 2D context
+   */
+  drawImage(dataUrl, x, y, w, h, callback) {
+    const img = new Image();
+    img.onload = () => {
+      this.ctx.drawImage(img, x, y, w, h);
+      if (typeof callback === 'function') callback();
+    };
+    img.src = dataUrl;
+  }
+
+  /**
+   * Reads, compresses (max 400px limit, JPEG 0.7), centers, and draws an image locally
+   * and broadcasts the result to peers.
+   */
+  compressAndInsertImage(file, callback) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate proportional scale constraints
+        let w = img.width;
+        let h = img.height;
+        const maxDim = 400;
+        
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+
+        // Create an in-memory helper canvas for downscaling & compression
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0, w, h);
+
+        // Get compressed Base64 data URL string
+        const compressedDataUrl = tempCanvas.toDataURL('image/jpeg', 0.7);
+
+        // Compute local viewport center coordinates
+        const rect = this.canvas.getBoundingClientRect();
+        const cx = Math.round(rect.width / 2);
+        const cy = Math.round(rect.height / 2);
+        const x = cx - w / 2;
+        const y = cy - h / 2;
+
+        // Draw image onto the active context
+        this.drawImage(compressedDataUrl, x, y, w, h, () => {
+          this.saveHistoryState();
+
+          // Compile image shape batch payload
+          const imagePayload = {
+            shapeType: 'image',
+            dataUrl: compressedDataUrl,
+            x: x,
+            y: y,
+            w: w,
+            h: h
+          };
+
+          // Emit batch payload & trigger end boundaries
+          this.emit('drawBatch', imagePayload);
+          this.emit('strokeEnd');
+
+          if (typeof callback === 'function') callback();
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   /**
@@ -334,7 +413,7 @@ class CanvasEngine {
    * Stop the drawing sequence and commit shape states
    */
   stopDrawing() {
-    if (this.tool === 'text') return; // Skip mouseup handlers for text tool
+    if (this.tool === 'text' || this.tool === 'image') return; // Skip mouseup handlers for text/image tools
     
     if (this.isDrawing) {
       this.isDrawing = false;
@@ -386,7 +465,8 @@ class CanvasEngine {
     // Mouse Event Handlers
     this.canvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return; // Support left-click only
-      
+      if (this.tool === 'image') return; // Skip mouse drag triggers for images
+
       const { x, y } = this.getCanvasCoordinates(e);
 
       // Handle text input creation
@@ -436,6 +516,7 @@ class CanvasEngine {
 
     // Mobile Touch Event Handlers
     this.canvas.addEventListener('touchstart', (e) => {
+      if (this.tool === 'image') return;
       e.preventDefault(); // Stop mobile scroll animations
       
       const { x, y } = this.getCanvasCoordinates(e);
@@ -488,24 +569,6 @@ class CanvasEngine {
     }, { passive: false });
 
     this.canvas.addEventListener('touchend', () => this.stopDrawing());
-  }
-
-  /**
-   * Subscribes observer functions to Engine events
-   */
-  on(eventName, callback) {
-    if (this.listeners[eventName]) {
-      this.listeners[eventName].push(callback);
-    }
-  }
-
-  /**
-   * Triggers callbacks with argument payloads
-   */
-  emit(eventName, payload) {
-    if (this.listeners[eventName]) {
-      this.listeners[eventName].forEach(cb => cb(payload));
-    }
   }
 
   /**
