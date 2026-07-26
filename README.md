@@ -14,6 +14,7 @@ Designed with a premium dark-mode glassmorphism theme, it supports dynamic room 
 - **🚪 Isolated Rooms & Instant Share**: Dynamic room partitioning via URL parameters (`?room=unique-id`) and a one-click invite-link sharing action.
 - **👥 Active User List Dropdown**: Hover over the online users count badge to reveal a detailed dropdown list of active participants, complete with their color indicators and user labels.
 - **↩️ Distributed Undo/Redo**: Global history stacks synchronized in real time using `getImageData` and `putImageData` snapshots.
+- **📥 Whiteboard PNG Exporter**: Click "Export PNG" in the header to download a high-resolution composition matching the canvas view, rendered on a solid dark-mode background matching the application theme.
 - **💾 Disk-Backed Session Persistence**: Auto-saves room strokes to the server's disk (`/server/data/<room-id>.json`) on stroke completions. Reloads and reconstructs all drawings and history stacks automatically on page refresh.
 - **📊 Live Performance HUD**: Floating glassmorphism card rendering real-time **FPS** (via `requestAnimationFrame`) and WebSocket **Ping Latency RTT** (via heartbeat events).
 - **📐 Shape Drawing Tools**: Draw straight lines, rectangles, and circles with interactive outline drag previews.
