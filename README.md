@@ -17,6 +17,7 @@ Designed with a premium dark-mode glassmorphism theme, it supports dynamic room 
 - **📊 Live Performance HUD**: Floating glassmorphism card rendering real-time **FPS** (via `requestAnimationFrame`) and WebSocket **Ping Latency RTT** (via heartbeat events).
 - **📐 Shape Drawing Tools**: Draw straight lines, rectangles, and circles with interactive outline drag previews.
 - **📝 Collaborative Text Tool**: Click anywhere on the board to overlay text input, type characters, and press Enter to render and sync text fields.
+- **🖼️ Image Insertion Tool**: Insert local images, automatically compressed and centered, and synced dynamically to all room users.
 - **📱 Touch & Stylus Support**: Fully mobile-responsive and handles touch vectors natively.
 
 ---
