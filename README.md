@@ -12,6 +12,7 @@ Designed with a premium dark-mode glassmorphism theme, it supports dynamic room 
 - **⚡ Bandwidth-Optimized Networking**: Queue-based drawing segment batching flushed at 60Hz (~16ms) to minimize packet overhead while maintaining smooth path curves.
 - **📍 Real-Time Peer Cursor Tracking**: Throttled pointer tracking (30ms limits) rendering styled DOM cursor tags with custom colors deterministically hashed from socket IDs.
 - **🚪 Isolated Rooms & Instant Share**: Dynamic room partitioning via URL parameters (`?room=unique-id`) and a one-click invite-link sharing action.
+- **👥 Active User List Dropdown**: Hover over the online users count badge to reveal a detailed dropdown list of active participants, complete with their color indicators and user labels.
 - **↩️ Distributed Undo/Redo**: Global history stacks synchronized in real time using `getImageData` and `putImageData` snapshots.
 - **💾 Disk-Backed Session Persistence**: Auto-saves room strokes to the server's disk (`/server/data/<room-id>.json`) on stroke completions. Reloads and reconstructs all drawings and history stacks automatically on page refresh.
 - **📊 Live Performance HUD**: Floating glassmorphism card rendering real-time **FPS** (via `requestAnimationFrame`) and WebSocket **Ping Latency RTT** (via heartbeat events).
