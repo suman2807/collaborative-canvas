@@ -17,7 +17,8 @@ class WebSocketClient {
       undo: [],
       redo: [],
       requestCanvasState: [],
-      receiveCanvasState: []
+      receiveCanvasState: [],
+      roomCountUpdate: []
     };
 
     this.init();
@@ -100,6 +101,11 @@ class WebSocketClient {
     this.socket.on('receiveCanvasState', (data) => {
       this.emit('receiveCanvasState', data);
     });
+
+    // Listen for room client count updates
+    this.socket.on('roomCountUpdate', (data) => {
+      this.emit('roomCountUpdate', data);
+    });
   }
 
   /**
@@ -118,6 +124,9 @@ class WebSocketClient {
       this.statusDot.classList.add('disconnected');
       this.statusText.textContent = 'Disconnected';
       this.statusText.style.color = 'var(--text-secondary)';
+      
+      // Emit clear updates on local disconnect
+      this.emit('roomCountUpdate', { count: 0 });
     }
   }
 

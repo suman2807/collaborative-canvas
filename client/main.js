@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const undoBtn = document.getElementById('btn-undo');
   const redoBtn = document.getElementById('btn-redo');
   const cursorsContainer = document.getElementById('cursors-container');
+  const userCountBadge = document.getElementById('user-count');
 
   // ==========================================
   // COLLABORATIVE MEDIATOR BINDINGS
@@ -84,6 +85,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // 6. Relaying redo actions
   socketClient.on('redo', () => {
     canvasEngine.redo();
+  });
+
+  // 7. Handle active room user count updates
+  socketClient.on('roomCountUpdate', ({ count }) => {
+    if (count > 0) {
+      userCountBadge.style.display = 'inline-block';
+      userCountBadge.textContent = `${count} ${count === 1 ? 'User' : 'Users'} Online`;
+    } else {
+      userCountBadge.style.display = 'none';
+    }
   });
 
   // ==========================================

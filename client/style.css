@@ -417,3 +417,18 @@ body {
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
+
+/* User Count badge styling */
+.user-count-badge {
+  background-color: var(--accent-glow);
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  margin-left: 10px;
+  box-shadow: 0 0 8px var(--accent-glow);
+  display: inline-block;
+  vertical-align: middle;
+}

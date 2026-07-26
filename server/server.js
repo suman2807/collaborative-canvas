@@ -53,8 +53,12 @@ io.on('connection', (socket) => {
     socket.currentRoom = room; // Store room reference on the socket object
     console.log(`[Socket Server] Client ${socket.id} joined room: ${room}`);
 
-    // P2P State Bootstrapping: Check if there are other clients in the room
+    // Update and broadcast room count update
     const roomClients = io.sockets.adapter.rooms.get(room);
+    const count = roomClients ? roomClients.size : 0;
+    io.to(room).emit('roomCountUpdate', { count });
+
+    // P2P State Bootstrapping: Check if there are other clients in the room
     if (roomClients && roomClients.size > 1) {
       let hostId = null;
       for (const clientId of roomClients) {
@@ -116,14 +120,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Disconnecting handler (called before socket leaves rooms)
+  socket.on('disconnecting', () => {
+    socket.rooms.forEach(currentRoom => {
+      if (currentRoom !== socket.id) {
+        const roomClients = io.sockets.adapter.rooms.get(currentRoom);
+        let count = roomClients ? roomClients.size : 0;
+        if (roomClients && roomClients.has(socket.id)) {
+          count = roomClients.size - 1;
+        }
+        
+        // Notify other clients about count and user departure
+        socket.to(currentRoom).emit('roomCountUpdate', { count });
+        socket.to(currentRoom).emit('userLeft', socket.id);
+      }
+    });
+  });
+
   // Disconnection handler
   socket.on('disconnect', (reason) => {
     console.log(`[Socket Server] Client disconnected: ${socket.id}. Reason: ${reason}`);
-    
-    // Notify room members that this user disconnected
-    if (socket.currentRoom) {
-      socket.to(socket.currentRoom).emit('userLeft', socket.id);
-    }
   });
 });
 
