@@ -16,6 +16,7 @@ Designed with a premium dark-mode glassmorphism theme, it supports dynamic room 
 - **💾 Disk-Backed Session Persistence**: Auto-saves room strokes to the server's disk (`/server/data/<room-id>.json`) on stroke completions. Reloads and reconstructs all drawings and history stacks automatically on page refresh.
 - **📊 Live Performance HUD**: Floating glassmorphism card rendering real-time **FPS** (via `requestAnimationFrame`) and WebSocket **Ping Latency RTT** (via heartbeat events).
 - **📐 Shape Drawing Tools**: Draw straight lines, rectangles, and circles with interactive outline drag previews.
+- **📝 Collaborative Text Tool**: Click anywhere on the board to overlay text input, type characters, and press Enter to render and sync text fields.
 - **📱 Touch & Stylus Support**: Fully mobile-responsive and handles touch vectors natively.
 
 ---
