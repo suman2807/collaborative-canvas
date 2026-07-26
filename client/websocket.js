@@ -10,7 +10,9 @@ class WebSocketClient {
     
     // Observer Callbacks for canvas synchronization
     this.listeners = {
-      drawBatch: []
+      drawBatch: [],
+      cursorMove: [],
+      userLeft: []
     };
 
     this.init();
@@ -58,6 +60,16 @@ class WebSocketClient {
     this.socket.on('drawBatch', (batchData) => {
       this.emit('drawBatch', batchData);
     });
+
+    // Listen for remote peer cursor movements
+    this.socket.on('cursorMove', (cursorData) => {
+      this.emit('cursorMove', cursorData);
+    });
+
+    // Listen for peer disconnection notices
+    this.socket.on('userLeft', (userId) => {
+      this.emit('userLeft', userId);
+    });
   }
 
   /**
@@ -103,6 +115,15 @@ class WebSocketClient {
   sendDrawingBatch(batchData) {
     if (this.socket && this.socket.connected) {
       this.socket.emit('drawBatch', batchData);
+    }
+  }
+
+  /**
+   * Emit cursor coordinates to server
+   */
+  sendCursor(coords) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('cursorMove', coords);
     }
   }
 }

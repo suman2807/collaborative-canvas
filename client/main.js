@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const strokeValLabel = document.getElementById('width-val');
   const clearBtn = document.getElementById('btn-clear');
   const shareBtn = document.getElementById('btn-share');
+  const cursorsContainer = document.getElementById('cursors-container');
 
   // ==========================================
   // COLLABORATIVE MEDIATOR BINDINGS
@@ -61,6 +62,85 @@ document.addEventListener('DOMContentLoaded', () => {
         lineWidth
       );
     });
+  });
+
+  // ==========================================
+  // PEER CURSOR TRACKING LOGIC
+  // ==========================================
+
+  let lastCursorSend = 0;
+
+  // Track local cursor coordinates and transmit to peers
+  canvas.addEventListener('mousemove', (e) => {
+    const now = Date.now();
+    // Throttle cursor updates to once every 30ms (~33 FPS) to conserve bandwidth
+    if (now - lastCursorSend > 30) {
+      const { x, y } = canvasEngine.getCanvasCoordinates(e);
+      socketClient.sendCursor({ x, y });
+      lastCursorSend = now;
+    }
+  });
+
+  // Handle local cursor leaving the canvas area
+  canvas.addEventListener('mouseleave', () => {
+    // Hide our local cursor position on other clients by sending out-of-bounds coordinates
+    socketClient.sendCursor({ x: -100, y: -100 });
+  });
+
+  /**
+   * Deterministically generates HSL color from socket string ID seed
+   */
+  const getDeterministicColor = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 85%, 65%)`; // curation: vibrant, highly visible HSL values
+  };
+
+  // Render peer cursors in the DOM overlay
+  socketClient.on('cursorMove', ({ id, x, y }) => {
+    let cursorEl = document.getElementById(`cursor-${id}`);
+    
+    // Create cursor DOM elements dynamically if not already present
+    if (!cursorEl) {
+      cursorEl = document.createElement('div');
+      cursorEl.id = `cursor-${id}`;
+      cursorEl.className = 'peer-cursor';
+
+      // Create cursor pointer dot
+      const pointer = document.createElement('div');
+      pointer.className = 'cursor-pointer';
+      const color = getDeterministicColor(id);
+      pointer.style.setProperty('--cursor-color', color);
+
+      // Create label tag
+      const label = document.createElement('span');
+      label.className = 'cursor-label';
+      label.textContent = `User-${id.substring(0, 4)}`;
+
+      cursorEl.appendChild(pointer);
+      cursorEl.appendChild(label);
+      cursorsContainer.appendChild(cursorEl);
+    }
+
+    // Hide cursor if out-of-bounds coordinate packet is received
+    if (x < 0 || y < 0) {
+      cursorEl.style.display = 'none';
+    } else {
+      cursorEl.style.display = 'flex';
+      // Shift coordinates using transform parameters (highly hardware accelerated)
+      cursorEl.style.transform = `translate(${x}px, ${y}px)`;
+    }
+  });
+
+  // Clean up peer cursors on disconnect
+  socketClient.on('userLeft', (userId) => {
+    const cursorEl = document.getElementById(`cursor-${userId}`);
+    if (cursorEl) {
+      cursorEl.remove();
+    }
   });
 
   // ==========================================

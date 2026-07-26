@@ -62,9 +62,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Relay pointer cursor updates
+  socket.on('cursorMove', (coords) => {
+    if (socket.currentRoom) {
+      // Send cursor coordinates with sender's ID to other room members
+      socket.to(socket.currentRoom).emit('cursorMove', {
+        id: socket.id,
+        x: coords.x,
+        y: coords.y
+      });
+    }
+  });
+
   // Disconnection handler
   socket.on('disconnect', (reason) => {
     console.log(`[Socket Server] Client disconnected: ${socket.id}. Reason: ${reason}`);
+    
+    // Notify room members that this user disconnected
+    if (socket.currentRoom) {
+      socket.to(socket.currentRoom).emit('userLeft', socket.id);
+    }
   });
 });
 
