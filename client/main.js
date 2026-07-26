@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const toolLine = document.getElementById('tool-line');
   const toolRect = document.getElementById('tool-rect');
   const toolCircle = document.getElementById('tool-circle');
+  const toolText = document.getElementById('tool-text');
   const colorSwatches = document.querySelectorAll('.color-swatch');
   const colorPicker = document.getElementById('color-picker');
   const strokeSlider = document.getElementById('stroke-width');
@@ -85,6 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const x1 = remoteBatch.cx + remoteBatch.r;
         const y1 = remoteBatch.cy;
         canvasEngine.drawShapeOutline('circle', remoteBatch.cx, remoteBatch.cy, x1, y1, color, lineWidth);
+      } else if (shapeType === 'text') {
+        canvasEngine.drawText(remoteBatch.text, remoteBatch.x, remoteBatch.y, color, remoteBatch.fontSize);
       }
     }
   });
@@ -148,6 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasEngine.drawShapeOutline('rect', batch.x, batch.y, batch.x + batch.w, batch.y + batch.h, color, lineWidth);
           } else if (shapeType === 'circle') {
             canvasEngine.drawShapeOutline('circle', batch.cx, batch.cy, batch.cx + batch.r, batch.cy, color, lineWidth);
+          } else if (shapeType === 'text') {
+            canvasEngine.drawText(batch.text, batch.x, batch.y, color, batch.fontSize);
           }
         }
       });
@@ -289,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toolLine.classList.remove('active');
     toolRect.classList.remove('active');
     toolCircle.classList.remove('active');
+    toolText.classList.remove('active');
     activeBtn.classList.add('active');
   };
 
@@ -307,28 +313,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Wire tool selector triggers
   toolBrush.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'brush';
     setActiveTool(toolBrush);
   });
 
   toolEraser.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'eraser';
     setActiveTool(toolEraser);
   });
 
   toolLine.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'line';
     setActiveTool(toolLine);
   });
 
   toolRect.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'rect';
     setActiveTool(toolRect);
   });
 
   toolCircle.addEventListener('click', () => {
+    canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'circle';
     setActiveTool(toolCircle);
+  });
+
+  toolText.addEventListener('click', () => {
+    canvasEngine.tool = 'text';
+    setActiveTool(toolText);
   });
 
   // Wire preset color palette swatches
@@ -336,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     swatch.addEventListener('click', (e) => {
       const selectedColor = e.target.getAttribute('data-color');
       canvasEngine.color = selectedColor;
-      // Selecting color resets to brush mode if in eraser mode, but preserves shape tools
+      // Selecting color resets to brush mode if in eraser mode, but preserves shape/text tools
       if (canvasEngine.tool === 'eraser') {
         canvasEngine.tool = 'brush';
         setActiveTool(toolBrush);

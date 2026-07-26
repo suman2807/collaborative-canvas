@@ -16,7 +16,7 @@ class CanvasEngine {
     // Current Drawing Config Defaults
     this.color = '#a855f7'; // Purple accent
     this.lineWidth = 4;
-    this.tool = 'brush'; // 'brush', 'eraser', 'line', 'rect', 'circle'
+    this.tool = 'brush'; // 'brush', 'eraser', 'line', 'rect', 'circle', 'text'
     
     // Performance Buffering States
     this.batchBuffer = [];
@@ -130,7 +130,7 @@ class CanvasEngine {
     this.lastY = y;
 
     // Save full canvas snapshot for preview rendering if drawing a shape
-    if (this.tool !== 'brush' && this.tool !== 'eraser') {
+    if (this.tool !== 'brush' && this.tool !== 'eraser' && this.tool !== 'text') {
       this.previewSnapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     }
   }
@@ -140,6 +140,7 @@ class CanvasEngine {
    */
   draw(x, y) {
     if (!this.isDrawing) return;
+    if (this.tool === 'text') return; // Skip drag movement operations for text mode
 
     this.lastX = x;
     this.lastY = y;
@@ -215,6 +216,48 @@ class CanvasEngine {
   }
 
   /**
+   * Render a text block directly to the 2D context
+   */
+  drawText(text, x, y, color, fontSize) {
+    this.ctx.font = fontSize || '600 16px "Plus Jakarta Sans", sans-serif';
+    this.ctx.fillStyle = color;
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText(text, x, y);
+  }
+
+  /**
+   * Commits any active input box on the screen onto the Canvas context
+   */
+  commitActiveTextInput() {
+    const activeInput = document.getElementById('active-canvas-text-input');
+    if (activeInput) {
+      const text = activeInput.value.trim();
+      const canvasX = parseFloat(activeInput.getAttribute('data-canvas-x'));
+      const canvasY = parseFloat(activeInput.getAttribute('data-canvas-y'));
+      
+      if (text) {
+        this.drawText(text, canvasX, canvasY, this.color);
+        
+        // Compile coordinates for text shape batch payload
+        const textPayload = {
+          shapeType: 'text',
+          text: text,
+          x: canvasX,
+          y: canvasY,
+          color: this.color,
+          fontSize: '600 16px "Plus Jakarta Sans", sans-serif'
+        };
+
+        // Emit text payload
+        this.emit('drawBatch', textPayload);
+        this.saveHistoryState();
+        this.emit('strokeEnd');
+      }
+      activeInput.remove();
+    }
+  }
+
+  /**
    * Captures and stores the current canvas state onto our history stack
    */
   saveHistoryState() {
@@ -239,6 +282,7 @@ class CanvasEngine {
    * Reverts canvas state back one step
    */
   undo() {
+    this.commitActiveTextInput(); // Commit any typing text before undoing
     if (this.historyIndex > 0) {
       this.historyIndex--;
       const snapshot = this.history[this.historyIndex];
@@ -252,6 +296,7 @@ class CanvasEngine {
    * Advances canvas state forward one step
    */
   redo() {
+    this.commitActiveTextInput(); // Commit any typing text before redoing
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex++;
       const snapshot = this.history[this.historyIndex];
@@ -289,6 +334,8 @@ class CanvasEngine {
    * Stop the drawing sequence and commit shape states
    */
   stopDrawing() {
+    if (this.tool === 'text') return; // Skip mouseup handlers for text tool
+    
     if (this.isDrawing) {
       this.isDrawing = false;
 
@@ -339,7 +386,43 @@ class CanvasEngine {
     // Mouse Event Handlers
     this.canvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return; // Support left-click only
+      
       const { x, y } = this.getCanvasCoordinates(e);
+
+      // Handle text input creation
+      if (this.tool === 'text') {
+        this.commitActiveTextInput();
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'active-canvas-text-input';
+        input.className = 'canvas-text-input';
+        input.style.left = `${clientX}px`;
+        input.style.top = `${clientY}px`;
+        input.style.setProperty('--accent-color', this.color);
+        input.setAttribute('data-canvas-x', x);
+        input.setAttribute('data-canvas-y', y);
+        
+        const wrapper = document.getElementById('canvas-wrapper') || this.canvas.parentElement;
+        wrapper.appendChild(input);
+        
+        setTimeout(() => input.focus(), 10);
+        
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            this.commitActiveTextInput();
+          }
+        });
+        input.addEventListener('blur', () => {
+          this.commitActiveTextInput();
+        });
+        return;
+      }
+
       this.startDrawing(x, y);
     });
 
@@ -354,7 +437,47 @@ class CanvasEngine {
     // Mobile Touch Event Handlers
     this.canvas.addEventListener('touchstart', (e) => {
       e.preventDefault(); // Stop mobile scroll animations
+      
       const { x, y } = this.getCanvasCoordinates(e);
+
+      // Handle text input on mobile
+      if (this.tool === 'text') {
+        this.commitActiveTextInput();
+        
+        const rect = this.canvas.getBoundingClientRect();
+        let touchX = x;
+        let touchY = y;
+        if (e.touches && e.touches.length > 0) {
+          touchX = e.touches[0].clientX - rect.left;
+          touchY = e.touches[0].clientY - rect.top;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'active-canvas-text-input';
+        input.className = 'canvas-text-input';
+        input.style.left = `${touchX}px`;
+        input.style.top = `${touchY}px`;
+        input.style.setProperty('--accent-color', this.color);
+        input.setAttribute('data-canvas-x', x);
+        input.setAttribute('data-canvas-y', y);
+        
+        const wrapper = document.getElementById('canvas-wrapper') || this.canvas.parentElement;
+        wrapper.appendChild(input);
+        
+        setTimeout(() => input.focus(), 10);
+        
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            this.commitActiveTextInput();
+          }
+        });
+        input.addEventListener('blur', () => {
+          this.commitActiveTextInput();
+        });
+        return;
+      }
+
       this.startDrawing(x, y);
     }, { passive: false });
 
@@ -389,6 +512,7 @@ class CanvasEngine {
    * Clear the entire canvas context and cancel intervals on teardown
    */
   clear() {
+    this.commitActiveTextInput(); // Clean input if clearing
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
