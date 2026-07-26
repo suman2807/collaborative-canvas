@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastCursorSend = 0;
 
   // Track local cursor coordinates and transmit to peers
-  canvas.addEventListener('mousemove', (e) => {
+  canvas.addEventListener('pointermove', (e) => {
     const now = Date.now();
     // Throttle cursor updates to once every 30ms (~33 FPS) to conserve bandwidth
     if (now - lastCursorSend > 30) {
@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Handle local cursor leaving the canvas area
-  canvas.addEventListener('mouseleave', () => {
+  canvas.addEventListener('pointerleave', () => {
     // Hide our local cursor position on other clients by sending out-of-bounds coordinates
     socketClient.sendCursor({ x: -100, y: -100 });
   });

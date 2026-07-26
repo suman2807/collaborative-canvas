@@ -102,20 +102,9 @@ class CanvasEngine {
    */
   getCanvasCoordinates(e) {
     const rect = this.canvas.getBoundingClientRect();
-    let clientX, clientY;
-
-    // Handle touch events
-    if (e.touches && e.touches.length > 0) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   }
 
@@ -462,10 +451,18 @@ class CanvasEngine {
    * Setup DOM listeners for Mouse and Touch interaction vectors
    */
   attachEventListeners() {
-    // Mouse Event Handlers
-    this.canvas.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return; // Support left-click only
-      if (this.tool === 'image') return; // Skip mouse drag triggers for images
+    // Unified Pointer Event Handlers
+    this.canvas.addEventListener('pointerdown', (e) => {
+      // Support left-click, active touch, or active stylus tips (button 0 or -1 for touches)
+      if (e.button !== 0 && e.button !== -1) return;
+      if (this.tool === 'image') return; // Skip drag triggers for image insertion
+
+      // Capture the pointer ID to receive pointer movements outside the canvas container boundaries
+      try {
+        this.canvas.setPointerCapture(e.pointerId);
+      } catch (err) {
+        console.warn('[CanvasEngine] setPointerCapture failed:', err);
+      }
 
       const { x, y } = this.getCanvasCoordinates(e);
 
@@ -506,69 +503,25 @@ class CanvasEngine {
       this.startDrawing(x, y);
     });
 
-    this.canvas.addEventListener('mousemove', (e) => {
+    this.canvas.addEventListener('pointermove', (e) => {
       const { x, y } = this.getCanvasCoordinates(e);
       this.draw(x, y);
     });
 
-    this.canvas.addEventListener('mouseup', () => this.stopDrawing());
-    this.canvas.addEventListener('mouseleave', () => this.stopDrawing());
-
-    // Mobile Touch Event Handlers
-    this.canvas.addEventListener('touchstart', (e) => {
-      if (this.tool === 'image') return;
-      e.preventDefault(); // Stop mobile scroll animations
-      
-      const { x, y } = this.getCanvasCoordinates(e);
-
-      // Handle text input on mobile
-      if (this.tool === 'text') {
-        this.commitActiveTextInput();
-        
-        const rect = this.canvas.getBoundingClientRect();
-        let touchX = x;
-        let touchY = y;
-        if (e.touches && e.touches.length > 0) {
-          touchX = e.touches[0].clientX - rect.left;
-          touchY = e.touches[0].clientY - rect.top;
+    const stopDrawingHandler = (e) => {
+      if (this.isDrawing) {
+        try {
+          this.canvas.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          // Ignore failures if capture was already released
         }
-
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.id = 'active-canvas-text-input';
-        input.className = 'canvas-text-input';
-        input.style.left = `${touchX}px`;
-        input.style.top = `${touchY}px`;
-        input.style.setProperty('--accent-color', this.color);
-        input.setAttribute('data-canvas-x', x);
-        input.setAttribute('data-canvas-y', y);
-        
-        const wrapper = document.getElementById('canvas-wrapper') || this.canvas.parentElement;
-        wrapper.appendChild(input);
-        
-        setTimeout(() => input.focus(), 10);
-        
-        input.addEventListener('keydown', (ev) => {
-          if (ev.key === 'Enter') {
-            this.commitActiveTextInput();
-          }
-        });
-        input.addEventListener('blur', () => {
-          this.commitActiveTextInput();
-        });
-        return;
+        this.stopDrawing();
       }
+    };
 
-      this.startDrawing(x, y);
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      const { x, y } = this.getCanvasCoordinates(e);
-      this.draw(x, y);
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchend', () => this.stopDrawing());
+    this.canvas.addEventListener('pointerup', stopDrawingHandler);
+    this.canvas.addEventListener('pointercancel', stopDrawingHandler);
+    this.canvas.addEventListener('pointerleave', stopDrawingHandler);
   }
 
   /**
