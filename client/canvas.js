@@ -19,11 +19,17 @@ class CanvasEngine {
     // Performance Buffering States
     this.batchBuffer = [];
     this.flushInterval = null;
+
+    // Undo/Redo States
+    this.history = [];
+    this.historyIndex = -1;
+    this.maxHistory = 30; // Max stored canvas snapshots to control memory allocation
     
     // Observer Callbacks for network broadcasts
     this.listeners = {
       drawStep: [],
-      drawBatch: []
+      drawBatch: [],
+      strokeEnd: []
     };
 
     this.init();
@@ -60,6 +66,11 @@ class CanvasEngine {
     // Configure default brush styles for smooth joins
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
+
+    // Store baseline blank state if history stack is empty
+    if (this.history.length === 0) {
+      this.saveHistoryState();
+    }
   }
 
   /**
@@ -160,6 +171,53 @@ class CanvasEngine {
   }
 
   /**
+   * Captures and stores the current canvas state onto our history stack
+   */
+  saveHistoryState() {
+    // Truncate any redo states if we drew a new stroke after undoing
+    if (this.historyIndex < this.history.length - 1) {
+      this.history = this.history.slice(0, this.historyIndex + 1);
+    }
+
+    // Capture context state
+    const snapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    this.history.push(snapshot);
+
+    // Keep history stack within boundaries
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+
+    this.historyIndex = this.history.length - 1;
+  }
+
+  /**
+   * Reverts canvas state back one step
+   */
+  undo() {
+    if (this.historyIndex > 0) {
+      this.historyIndex--;
+      const snapshot = this.history[this.historyIndex];
+      this.ctx.putImageData(snapshot, 0, 0);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Advances canvas state forward one step
+   */
+  redo() {
+    if (this.historyIndex < this.history.length - 1) {
+      this.historyIndex++;
+      const snapshot = this.history[this.historyIndex];
+      this.ctx.putImageData(snapshot, 0, 0);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Periodic flusher timer that bundles drawing segments and transmits them
    */
   startBufferFlushTimer() {
@@ -186,7 +244,11 @@ class CanvasEngine {
    * Stop the drawing sequence
    */
   stopDrawing() {
-    this.isDrawing = false;
+    if (this.isDrawing) {
+      this.isDrawing = false;
+      this.saveHistoryState();
+      this.emit('strokeEnd');
+    }
   }
 
   /**

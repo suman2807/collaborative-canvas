@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const strokeValLabel = document.getElementById('width-val');
   const clearBtn = document.getElementById('btn-clear');
   const shareBtn = document.getElementById('btn-share');
+  const undoBtn = document.getElementById('btn-undo');
+  const redoBtn = document.getElementById('btn-redo');
   const cursorsContainer = document.getElementById('cursors-container');
 
   // ==========================================
@@ -62,6 +64,55 @@ document.addEventListener('DOMContentLoaded', () => {
         lineWidth
       );
     });
+  });
+
+  // 3. Emit local stroke completion signals
+  canvasEngine.on('strokeEnd', () => {
+    socketClient.sendStrokeEnd();
+  });
+
+  // 4. Listen for remote peer stroke completion signals to snapshot canvas
+  socketClient.on('strokeEnd', () => {
+    canvasEngine.saveHistoryState();
+  });
+
+  // 5. Relaying undo actions
+  socketClient.on('undo', () => {
+    canvasEngine.undo();
+  });
+
+  // 6. Relaying redo actions
+  socketClient.on('redo', () => {
+    canvasEngine.redo();
+  });
+
+  // ==========================================
+  // P2P STATE SYNCHRONIZATION BINDINGS
+  // ==========================================
+
+  // Host listener: captures and sends state to requester
+  socketClient.on('requestCanvasState', ({ requesterId }) => {
+    console.log(`[App] Host: Capturing canvas state snapshot for client ${requesterId}`);
+    const stateUrl = canvas.toDataURL();
+    socketClient.sendCanvasState(requesterId, stateUrl);
+  });
+
+  // Requester listener: paints received state onto blank canvas
+  socketClient.on('receiveCanvasState', ({ stateUrl }) => {
+    console.log('[App] Requester: Received canvas state snapshot. Painting canvas...');
+    const img = new Image();
+    img.onload = () => {
+      canvasEngine.ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const dpr = window.devicePixelRatio || 1;
+      // Draw correctly scaled high-DPI image representation
+      canvasEngine.ctx.drawImage(img, 0, 0, canvas.width / dpr, canvas.height / dpr);
+      
+      // Seed history stack using current loaded bitmap
+      canvasEngine.history = [canvasEngine.ctx.getImageData(0, 0, canvas.width, canvas.height)];
+      canvasEngine.historyIndex = 0;
+      console.log('[App] Canvas state successfully synchronized from peer.');
+    };
+    img.src = stateUrl;
   });
 
   // ==========================================
@@ -208,10 +259,27 @@ document.addEventListener('DOMContentLoaded', () => {
     strokeValLabel.textContent = `${selectedWidth}px`;
   });
 
+  // Wire local and global Undo buttons
+  undoBtn.addEventListener('click', () => {
+    if (canvasEngine.undo()) {
+      socketClient.sendUndo();
+    }
+  });
+
+  // Wire local and global Redo buttons
+  redoBtn.addEventListener('click', () => {
+    if (canvasEngine.redo()) {
+      socketClient.sendRedo();
+    }
+  });
+
   // Wire local canvas clear triggers
   clearBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to clear the entire whiteboard?')) {
       canvasEngine.clear();
+      // Snapshots state change in local history buffers
+      canvasEngine.saveHistoryState();
+      socketClient.sendStrokeEnd();
     }
   });
 

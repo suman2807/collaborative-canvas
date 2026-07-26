@@ -12,7 +12,12 @@ class WebSocketClient {
     this.listeners = {
       drawBatch: [],
       cursorMove: [],
-      userLeft: []
+      userLeft: [],
+      strokeEnd: [],
+      undo: [],
+      redo: [],
+      requestCanvasState: [],
+      receiveCanvasState: []
     };
 
     this.init();
@@ -70,6 +75,31 @@ class WebSocketClient {
     this.socket.on('userLeft', (userId) => {
       this.emit('userLeft', userId);
     });
+
+    // Listen for stroke completion notices
+    this.socket.on('strokeEnd', () => {
+      this.emit('strokeEnd');
+    });
+
+    // Listen for remote undo events
+    this.socket.on('undo', () => {
+      this.emit('undo');
+    });
+
+    // Listen for remote redo events
+    this.socket.on('redo', () => {
+      this.emit('redo');
+    });
+
+    // Listen for state requests (acting as host)
+    this.socket.on('requestCanvasState', (data) => {
+      this.emit('requestCanvasState', data);
+    });
+
+    // Listen for state transmissions (acting as new requester)
+    this.socket.on('receiveCanvasState', (data) => {
+      this.emit('receiveCanvasState', data);
+    });
   }
 
   /**
@@ -124,6 +154,42 @@ class WebSocketClient {
   sendCursor(coords) {
     if (this.socket && this.socket.connected) {
       this.socket.emit('cursorMove', coords);
+    }
+  }
+
+  /**
+   * Emit stroke completion signals
+   */
+  sendStrokeEnd() {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('strokeEnd');
+    }
+  }
+
+  /**
+   * Emit undo action notifications
+   */
+  sendUndo() {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('undo');
+    }
+  }
+
+  /**
+   * Emit redo action notifications
+   */
+  sendRedo() {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('redo');
+    }
+  }
+
+  /**
+   * Send canvas PNG URL back to requester client
+   */
+  sendCanvasState(requesterId, stateUrl) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('sendCanvasState', { requesterId, stateUrl });
     }
   }
 }

@@ -52,6 +52,22 @@ io.on('connection', (socket) => {
     socket.join(room);
     socket.currentRoom = room; // Store room reference on the socket object
     console.log(`[Socket Server] Client ${socket.id} joined room: ${room}`);
+
+    // P2P State Bootstrapping: Check if there are other clients in the room
+    const roomClients = io.sockets.adapter.rooms.get(room);
+    if (roomClients && roomClients.size > 1) {
+      let hostId = null;
+      for (const clientId of roomClients) {
+        if (clientId !== socket.id) {
+          hostId = clientId;
+          break;
+        }
+      }
+      if (hostId) {
+        console.log(`[Socket Server] Requesting state from host ${hostId} for new client ${socket.id}`);
+        io.to(hostId).emit('requestCanvasState', { requesterId: socket.id });
+      }
+    }
   });
 
   // Capture real-time drawing coordinate batches from a client
@@ -60,6 +76,32 @@ io.on('connection', (socket) => {
       // Relay only to other sockets in the same room channel
       socket.to(socket.currentRoom).emit('drawBatch', batchData);
     }
+  });
+
+  // Relay strokeEnd trigger notifications
+  socket.on('strokeEnd', () => {
+    if (socket.currentRoom) {
+      socket.to(socket.currentRoom).emit('strokeEnd');
+    }
+  });
+
+  // Relay undo command events
+  socket.on('undo', () => {
+    if (socket.currentRoom) {
+      socket.to(socket.currentRoom).emit('undo');
+    }
+  });
+
+  // Relay redo command events
+  socket.on('redo', () => {
+    if (socket.currentRoom) {
+      socket.to(socket.currentRoom).emit('redo');
+    }
+  });
+
+  // Forward captured canvas state from host to requester
+  socket.on('sendCanvasState', ({ requesterId, stateUrl }) => {
+    io.to(requesterId).emit('receiveCanvasState', { stateUrl });
   });
 
   // Relay pointer cursor updates
