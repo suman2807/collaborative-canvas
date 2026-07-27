@@ -190,6 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
       item.appendChild(dot);
       
       if (isYou) {
+        // Editable name container wrapper
+        const nameWrapper = document.createElement('div');
+        nameWrapper.style.display = 'flex';
+        nameWrapper.style.alignItems = 'center';
+        nameWrapper.style.gap = '4px';
+
         // Editable display name input
         const input = document.createElement('input');
         input.type = 'text';
@@ -211,7 +217,20 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         
-        item.appendChild(input);
+        nameWrapper.appendChild(input);
+        
+        // Small edit visual pencil icon indicator
+        const editIndicator = document.createElement('span');
+        editIndicator.className = 'name-edit-indicator';
+        editIndicator.textContent = '✏️';
+        editIndicator.title = "Click to change display name";
+        editIndicator.style.fontSize = '0.75rem';
+        editIndicator.style.opacity = '0.6';
+        editIndicator.style.cursor = 'text';
+        editIndicator.addEventListener('click', () => input.focus());
+        nameWrapper.appendChild(editIndicator);
+
+        item.appendChild(nameWrapper);
         
         const youBadge = document.createElement('span');
         youBadge.className = 'user-item-you';

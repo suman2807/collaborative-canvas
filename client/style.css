@@ -438,7 +438,7 @@ body {
 .performance-hud {
   position: fixed;
   top: 90px; /* Positions below header bar */
-  right: 24px;
+  left: 24px;
   background: rgba(14, 17, 23, 0.7);
   border: 1px solid var(--border-color);
   backdrop-filter: blur(12px);
@@ -586,9 +586,14 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0px 2px;
-  width: 90px;
+  width: 120px;
   outline: none;
+  cursor: text;
   transition: border-bottom-color var(--transition-fast);
+}
+
+.username-input:hover {
+  border-bottom-color: rgba(255, 255, 255, 0.6);
 }
 
 .username-input:focus {
