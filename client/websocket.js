@@ -217,7 +217,7 @@ class WebSocketClient {
    */
   changeUsername(newName) {
     this.username = newName;
-    localStorage.setItem('codraw_username', newName);
+    sessionStorage.setItem('codraw_username', newName);
     if (this.socket && this.socket.connected) {
       this.socket.emit('changeUsername', { username: newName });
     }

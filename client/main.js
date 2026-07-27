@@ -29,8 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const animals = ['Cheetah', 'Owl', 'Sloth', 'Fox', 'Koala', 'Panda', 'Tiger', 'Dolphin', 'Falcon', 'Rabbit'];
     return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
   };
-  const savedUsername = localStorage.getItem('codraw_username') || generateRandomName();
-  localStorage.setItem('codraw_username', savedUsername);
+  const savedUsername = sessionStorage.getItem('codraw_username') || generateRandomName();
+  sessionStorage.setItem('codraw_username', savedUsername);
 
   // Initialize WebSocket Client with Room and Username parameters
   const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text', room, savedUsername);
