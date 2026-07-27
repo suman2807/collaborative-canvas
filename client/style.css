@@ -65,20 +65,31 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
 }
 
-.logo-dot {
-  width: 12px;
-  height: 12px;
-  background-color: var(--accent-color);
-  border-radius: 50%;
-  box-shadow: 0 0 12px var(--accent-color);
+.logo-svg {
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+  transition: transform var(--transition-normal);
+}
+
+.logo:hover .logo-svg {
+  transform: rotate(-10deg) scale(1.1);
 }
 
 .logo h1 {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.4rem;
+  font-weight: 800;
   letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #c084fc, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: opacity var(--transition-fast);
+}
+
+.logo:hover h1 {
+  opacity: 0.95;
 }
 
 .status-indicator {
