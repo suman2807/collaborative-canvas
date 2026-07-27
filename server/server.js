@@ -1,67 +1,25 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
-const fs = require('fs');
-const { Server } = require('socket.io'); // Import Socket.io Server API
+const { Server } = require('socket.io');
+
+const roomManager = require('./rooms');
+const drawingStateManager = require('./drawing-state');
 
 const app = express();
 const server = http.createServer(app);
 
-// Attach Socket.io Server instance to HTTP server
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins for dev simplicity
+    origin: '*',
   }
 });
 
-// Use environment port or default to 3000
 const PORT = process.env.PORT || 3000;
-
-// Resolve client static folder and data persistence folder paths
 const clientPath = path.join(__dirname, '../client');
-const dataDirPath = path.join(__dirname, 'data');
 
-// Create data persistence directory if it does not exist
-if (!fs.existsSync(dataDirPath)) {
-  fs.mkdirSync(dataDirPath, { recursive: true });
-}
-
-// In-memory caches for room drawing histories
-const roomHistories = {}; // roomID -> Array of completed strokes (each stroke is an array of coordinate batches)
-const roomRedoHistories = {}; // roomID -> Array of undone strokes (each stroke is an array of coordinate batches)
-const activeStrokes = {}; // roomID -> Array of batches in the currently active stroke
-
-// Helper: Async write room history to disk
-const saveRoomHistoryToDisk = (room) => {
-  const filePath = path.join(dataDirPath, `${room}.json`);
-  const data = JSON.stringify(roomHistories[room] || []);
-  fs.writeFile(filePath, data, 'utf8', (err) => {
-    if (err) {
-      console.error(`[Server] Failed to write history file for room ${room}:`, err);
-    }
-  });
-};
-
-// Helper: Compile and broadcast updated list of active users in the room
-const broadcastRoomUsers = (room) => {
-  const roomClients = io.sockets.adapter.rooms.get(room);
-  const users = [];
-  if (roomClients) {
-    for (const clientId of roomClients) {
-      const clientSocket = io.sockets.sockets.get(clientId);
-      users.push({
-        id: clientId,
-        username: clientSocket?.username || `User (${clientId.substring(0, 4)})`
-      });
-    }
-  }
-  io.to(room).emit('roomUsersUpdate', { users });
-};
-
-// Middleware to serve static files from the client directory
 app.use(express.static(clientPath));
 
-// Health check API endpoint
 app.get('/status', (req, res) => {
   res.json({
     status: 'ok',
@@ -70,218 +28,100 @@ app.get('/status', (req, res) => {
   });
 });
 
-// Fallback: Serve index.html for any unmatched routes (SPA fallback behavior)
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientPath, 'index.html'));
 });
 
-// Socket.io Connection lifecycle event handlers
 io.on('connection', (socket) => {
   console.log(`[Socket Server] Client connected: ${socket.id}`);
 
-  // Handle room joining requests
   socket.on('joinRoom', ({ room, username }) => {
-    // Leave all previous rooms (except the socket's default individual room)
-    socket.rooms.forEach(currentRoom => {
-      if (currentRoom !== socket.id) {
-        socket.leave(currentRoom);
-      }
-    });
+    roomManager.joinRoom(socket, room, username, io);
+    console.log(`[Socket Server] Client ${socket.id} (${socket.username}) joined room: ${room}`);
 
-    socket.join(room);
-    socket.currentRoom = room; // Store room reference on the socket object
-    if (username) {
-      socket.username = String(username).trim().substring(0, 15);
-    }
-    console.log(`[Socket Server] Client ${socket.id} (${socket.username || 'Anonymous'}) joined room: ${room}`);
-
-    // Update and broadcast room count update
-    const roomClients = io.sockets.adapter.rooms.get(room);
-    const count = roomClients ? roomClients.size : 0;
+    // Update and broadcast room statistics
+    const count = roomManager.getRoomCount(io, room);
     io.to(room).emit('roomCountUpdate', { count });
-
-    // Compile and broadcast updated list of active user IDs in the room
-    broadcastRoomUsers(room);
-
-    // Load room history from disk if not present in memory cache
-    if (!roomHistories[room]) {
-      const filePath = path.join(dataDirPath, `${room}.json`);
-      if (fs.existsSync(filePath)) {
-        try {
-          const fileData = fs.readFileSync(filePath, 'utf8');
-          roomHistories[room] = JSON.parse(fileData);
-        } catch (err) {
-          console.error(`[Server] Failed to parse history file for room ${room}:`, err);
-          roomHistories[room] = [];
-        }
-      } else {
-        roomHistories[room] = [];
-      }
-    }
+    roomManager.broadcastRoomUsers(io, room);
 
     // Send saved drawing history to the joining client
-    socket.emit('roomHistory', roomHistories[room]);
+    const history = drawingStateManager.getRoomHistory(room);
+    socket.emit('roomHistory', history);
   });
 
-  // Capture real-time drawing coordinate batches from a client
   socket.on('drawBatch', (batchData) => {
     if (socket.currentRoom) {
-      // Relay only to other sockets in the same room channel
       socket.to(socket.currentRoom).emit('drawBatch', batchData);
-
-      // Append batch data to the currently active stroke sequence
-      if (!activeStrokes[socket.currentRoom]) {
-        activeStrokes[socket.currentRoom] = [];
-      }
-      activeStrokes[socket.currentRoom].push(batchData);
+      drawingStateManager.appendStrokeBatch(socket.currentRoom, batchData);
     }
   });
 
-  // Relay strokeEnd trigger notifications and commit active stroke to history
   socket.on('strokeEnd', () => {
     if (socket.currentRoom) {
       socket.to(socket.currentRoom).emit('strokeEnd');
-
-      const stroke = activeStrokes[socket.currentRoom];
-      if (stroke && stroke.length > 0) {
-        if (!roomHistories[socket.currentRoom]) {
-          roomHistories[socket.currentRoom] = [];
-        }
-        roomHistories[socket.currentRoom].push(stroke);
-        activeStrokes[socket.currentRoom] = []; // Clear active stroke accumulator
-
-        // Clear redo stack on new stroke entry
-        roomRedoHistories[socket.currentRoom] = [];
-
-        // Save committed changes to disk
-        saveRoomHistoryToDisk(socket.currentRoom);
-      }
+      drawingStateManager.commitActiveStroke(socket.currentRoom);
     }
   });
 
-  // Relay undo command events and adjust history index
   socket.on('undo', () => {
     if (socket.currentRoom) {
-      if (roomHistories[socket.currentRoom] && roomHistories[socket.currentRoom].length > 0) {
-        const undoneStroke = roomHistories[socket.currentRoom].pop(); // Pop last completed stroke
-        
-        if (!roomRedoHistories[socket.currentRoom]) {
-          roomRedoHistories[socket.currentRoom] = [];
-        }
-        roomRedoHistories[socket.currentRoom].push(undoneStroke); // Save to redo stack
-        
-        saveRoomHistoryToDisk(socket.currentRoom);
+      const success = drawingStateManager.undoStroke(socket.currentRoom);
+      if (success) {
+        socket.to(socket.currentRoom).emit('undo');
       }
-      socket.to(socket.currentRoom).emit('undo');
     }
   });
 
-  // Relay redo command events
   socket.on('redo', () => {
     if (socket.currentRoom) {
-      if (roomRedoHistories[socket.currentRoom] && roomRedoHistories[socket.currentRoom].length > 0) {
-        const redoneStroke = roomRedoHistories[socket.currentRoom].pop(); // Pop from redo stack
-        
-        if (!roomHistories[socket.currentRoom]) {
-          roomHistories[socket.currentRoom] = [];
-        }
-        roomHistories[socket.currentRoom].push(redoneStroke); // Push back to active history
-        
-        saveRoomHistoryToDisk(socket.currentRoom);
+      const success = drawingStateManager.redoStroke(socket.currentRoom);
+      if (success) {
+        socket.to(socket.currentRoom).emit('redo');
       }
-      socket.to(socket.currentRoom).emit('redo');
     }
   });
 
-  // Handle client canvas clear commands
   socket.on('clear', () => {
     if (socket.currentRoom) {
-      roomHistories[socket.currentRoom] = [];
-      activeStrokes[socket.currentRoom] = [];
-      roomRedoHistories[socket.currentRoom] = [];
-      
-      // Delete persistence file if it exists
-      const filePath = path.join(dataDirPath, `${socket.currentRoom}.json`);
-      if (fs.existsSync(filePath)) {
-        fs.unlink(filePath, (err) => {
-          if (err) console.error(`[Server] Failed to delete history file for room ${socket.currentRoom}:`, err);
-        });
-      }
-
+      drawingStateManager.clearHistory(socket.currentRoom);
       socket.to(socket.currentRoom).emit('clear');
     }
   });
 
-  // Relay pointer cursor updates
   socket.on('cursorMove', (coords) => {
     if (socket.currentRoom) {
-      // Send cursor coordinates with sender's ID and name to other room members
       socket.to(socket.currentRoom).emit('cursorMove', {
         id: socket.id,
-        username: socket.username || `User (${socket.id.substring(0, 4)})`,
+        username: socket.username,
         x: coords.x,
         y: coords.y
       });
     }
   });
 
-  // Handle display name modifications
   socket.on('changeUsername', ({ username }) => {
     const sanitized = String(username).trim().substring(0, 15);
-    if (sanitized) {
+    if (sanitized && socket.currentRoom) {
       socket.username = sanitized;
-      if (socket.currentRoom) {
-        broadcastRoomUsers(socket.currentRoom);
-      }
+      roomManager.broadcastRoomUsers(io, socket.currentRoom);
     }
   });
 
-  // Respond to connection latency pings
   socket.on('ping', (callback) => {
     if (typeof callback === 'function') {
       callback();
     }
   });
 
-  // Disconnecting handler (called before socket leaves rooms)
   socket.on('disconnecting', () => {
-    socket.rooms.forEach(currentRoom => {
-      if (currentRoom !== socket.id) {
-        const roomClients = io.sockets.adapter.rooms.get(currentRoom);
-        let count = roomClients ? roomClients.size : 0;
-        if (roomClients && roomClients.has(socket.id)) {
-          count = roomClients.size - 1;
-        }
-        
-        // Notify other clients about count and user departure
-        socket.to(currentRoom).emit('roomCountUpdate', { count });
-        socket.to(currentRoom).emit('userLeft', socket.id);
-
-        // Compile and broadcast updated list of active users in the room (excluding this socket)
-        const users = [];
-        if (roomClients) {
-          for (const clientId of roomClients) {
-            if (clientId !== socket.id) {
-              const clientSocket = io.sockets.sockets.get(clientId);
-              users.push({
-                id: clientId,
-                username: clientSocket?.username || `User (${clientId.substring(0, 4)})`
-              });
-            }
-          }
-        }
-        socket.to(currentRoom).emit('roomUsersUpdate', { users });
-      }
-    });
+    roomManager.handleUserLeave(socket, io);
   });
 
-  // Disconnection handler
   socket.on('disconnect', (reason) => {
     console.log(`[Socket Server] Client disconnected: ${socket.id}. Reason: ${reason}`);
   });
 });
 
-// Start the unified HTTP + WS server
 server.listen(PORT, () => {
   console.log(`[Server] Running at http://localhost:${PORT}`);
   console.log(`[Server] Serving static files from: ${clientPath}`);
