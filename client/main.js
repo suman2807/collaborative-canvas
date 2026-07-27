@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log(`[App] WebSocket Client Initialized for room: ${room} as ${savedUsername}`);
 
   // DOM Elements binding definitions
+  const toolSelect = document.getElementById('tool-select');
   const toolBrush = document.getElementById('tool-brush');
   const toolEraser = document.getElementById('tool-eraser');
   const toolLine = document.getElementById('tool-line');
@@ -93,14 +94,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // COLLABORATIVE MEDIATOR BINDINGS
   // ==========================================
 
+  // Active stroke buffers to separate concurrent strokes of different clients
+  const activeStrokes = {};
+
   // 1. Send local drawing coordinate batches to peers
   canvasEngine.on('drawBatch', (batchData) => {
     socketClient.sendDrawingBatch(batchData);
+    
+    // Accumulate locally
+    const senderId = 'local';
+    if (!activeStrokes[senderId]) {
+      activeStrokes[senderId] = [];
+    }
+    activeStrokes[senderId].push(batchData);
   });
 
   // 2. Receive and render remote drawing batches from peers (freehand, shapes, or images)
   socketClient.on('drawBatch', (remoteBatch) => {
-    const { shapeType, color, lineWidth } = remoteBatch;
+    const { shapeType, color, lineWidth, senderId } = remoteBatch;
     
     if (!shapeType || shapeType === 'path') {
       const { segments } = remoteBatch;
@@ -132,16 +143,61 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEngine.drawImage(remoteBatch.dataUrl, remoteBatch.x, remoteBatch.y, remoteBatch.w, remoteBatch.h);
       }
     }
+
+    // Accumulate remote batch segments/shapes
+    const peerId = senderId || 'peer';
+    if (!activeStrokes[peerId]) {
+      activeStrokes[peerId] = [];
+    }
+    activeStrokes[peerId].push(remoteBatch);
   });
 
   // 3. Emit local stroke completion signals
   canvasEngine.on('strokeEnd', () => {
     socketClient.sendStrokeEnd();
+    
+    const stroke = activeStrokes['local'];
+    if (stroke && stroke.length > 0) {
+      stroke.owner = socketClient.socket?.id || 'local';
+      stroke.forEach(b => b.owner = stroke.owner);
+      canvasEngine.strokesLog.push(stroke);
+      delete activeStrokes['local'];
+      canvasEngine.redrawAllFromLog();
+    }
   });
 
-  // 4. Listen for remote peer stroke completion signals to snapshot canvas
-  socketClient.on('strokeEnd', () => {
+  // 4. Listen for remote peer stroke completion signals to commit stroke log
+  socketClient.on('strokeEnd', (data) => {
+    const peerId = data?.senderId || 'peer';
+    const stroke = activeStrokes[peerId];
+    if (stroke && stroke.length > 0) {
+      stroke.owner = peerId;
+      stroke.forEach(b => b.owner = peerId);
+      canvasEngine.strokesLog.push(stroke);
+      delete activeStrokes[peerId];
+      canvasEngine.redrawAllFromLog();
+    }
     canvasEngine.saveHistoryState();
+  });
+
+  // Listen for remote shape update events
+  socketClient.on('updateShape', ({ strokeIndex, newCoords }) => {
+    if (canvasEngine.strokesLog[strokeIndex]) {
+      const stroke = canvasEngine.strokesLog[strokeIndex];
+      if (stroke.length === 1) {
+        Object.assign(stroke[0], newCoords);
+        canvasEngine.redrawAllFromLog();
+      }
+    }
+  });
+
+  // Emit local shape updates
+  canvasEngine.on('updateShape', ({ strokeIndex, newCoords }) => {
+    socketClient.sendShapeUpdate(strokeIndex, newCoords);
+  });
+
+  canvasEngine.on('commitShapeUpdate', ({ strokeIndex, newCoords }) => {
+    socketClient.sendShapeUpdate(strokeIndex, newCoords);
   });
 
   // 5. Relaying undo actions
@@ -152,6 +208,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // 6. Relaying redo actions
   socketClient.on('redo', () => {
     canvasEngine.redo();
+  });
+
+  // 7. Receive and render saved drawing histories (Session Persistence)
+  socketClient.on('roomHistory', (historyData) => {
+    console.log(`[App] Synchronizing ${historyData.length} historical strokes from server authoritative log...`);
+    
+    // Filter and validate historical entries to ensure compatibility
+    const validatedHistory = historyData.filter(stroke => {
+      return Array.isArray(stroke) && stroke.length > 0 && stroke.every(batch => {
+        return (
+          batch && (
+            batch.shapeType === 'path' || 
+            ['line', 'rect', 'circle', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud', 'text', 'image'].includes(batch.shapeType)
+          )
+        );
+      });
+    });
+
+    canvasEngine.strokesLog = validatedHistory;
+    canvasEngine.redrawAllFromLog();
+    
+    // Re-synchronize local ImageData snapshots to keep fallback undo/redo stack aligned
+    canvasEngine.history = [];
+    canvasEngine.historyIndex = -1;
+    canvasEngine.saveHistoryState();
   });
 
   // 7. Handle active room user count updates
@@ -255,50 +336,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 8. Load persistent room history from server on join
-  socketClient.on('roomHistory', (strokes) => {
-    console.log(`[App] Loading ${strokes.length} historical strokes from server persistence...`);
-    canvasEngine.clear();
-    
-    // Draw historical strokes sequentially and populate local history stack
-    strokes.forEach(stroke => {
-      stroke.forEach(batch => {
-        const { shapeType, color, lineWidth } = batch;
-        if (!shapeType || shapeType === 'path') {
-          if (batch.segments) {
-            batch.segments.forEach(segment => {
-              canvasEngine.drawSegment(
-                segment.x0,
-                segment.y0,
-                segment.x1,
-                segment.y1,
-                color,
-                lineWidth
-              );
-            });
-          }
-        } else {
-          if (['line', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud'].includes(shapeType)) {
-            canvasEngine.drawShapeOutline(shapeType, batch.x0, batch.y0, batch.x1, batch.y1, color, lineWidth);
-          } else if (shapeType === 'rect') {
-            canvasEngine.drawShapeOutline('rect', batch.x, batch.y, batch.x + batch.w, batch.y + batch.h, color, lineWidth);
-          } else if (shapeType === 'circle') {
-            canvasEngine.drawShapeOutline('circle', batch.cx, batch.cy, batch.cx + batch.r, batch.cy, color, lineWidth);
-          } else if (shapeType === 'text') {
-            canvasEngine.drawText(batch.text, batch.x, batch.y, color, batch.fontSize);
-          } else if (shapeType === 'image') {
-            canvasEngine.drawImage(batch.dataUrl, batch.x, batch.y, batch.w, batch.h);
-          }
-        }
-      });
-      // Snapshots state change in local history buffers
-      canvasEngine.saveHistoryState();
-    });
-  });
+
 
   // 9. Listen for remote clear canvas commands
   socketClient.on('clear', () => {
     console.log('[App] Remote clear command received.');
+    canvasEngine.strokesLog = [];
     canvasEngine.clear();
     canvasEngine.saveHistoryState();
   });
@@ -430,11 +473,18 @@ document.addEventListener('DOMContentLoaded', () => {
       toolPentagon, toolHexagon, toolOctagon, toolHeart, toolCloud
     ];
     const tools = [
-      toolBrush, toolEraser, ...shapeTools,
+      toolSelect, toolBrush, toolEraser, ...shapeTools,
       toolText, toolImage
     ];
     tools.forEach(btn => btn && btn.classList.remove('active'));
     activeBtn.classList.add('active');
+
+    // Reset selection box when switching tools
+    if (canvasEngine.tool !== 'select') {
+      canvasEngine.selectedShape = null;
+      canvasEngine.selectedStrokeIndex = -1;
+      canvasEngine.redrawAllFromLog();
+    }
 
     // Highlight the shapes trigger if a shape tool is active
     if (toolShapesTrigger) {
@@ -460,9 +510,20 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Wire tool selector triggers
+  if (toolSelect) {
+    toolSelect.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'select';
+      setActiveTool(toolSelect);
+    });
+  }
+
   toolBrush.addEventListener('click', () => {
     canvasEngine.commitActiveTextInput();
     canvasEngine.tool = 'brush';
+    canvasEngine.selectedShape = null;
+    canvasEngine.selectedStrokeIndex = -1;
+    canvasEngine.redrawAllFromLog();
     setActiveTool(toolBrush);
   });
 
@@ -647,21 +708,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Wire local and global Undo buttons
   undoBtn.addEventListener('click', () => {
-    if (canvasEngine.undo()) {
-      socketClient.sendUndo();
-    }
+    socketClient.sendUndo();
   });
 
   // Wire local and global Redo buttons
   redoBtn.addEventListener('click', () => {
-    if (canvasEngine.redo()) {
-      socketClient.sendRedo();
-    }
+    socketClient.sendRedo();
   });
 
   // Wire local and global canvas clear triggers
   clearBtn.addEventListener('click', () => {
     if (confirm('Are you sure you want to clear the entire whiteboard?')) {
+      canvasEngine.strokesLog = [];
       canvasEngine.clear();
       // Snapshots state change in local history buffers
       canvasEngine.saveHistoryState();

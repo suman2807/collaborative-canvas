@@ -51,32 +51,45 @@ io.on('connection', (socket) => {
 
   socket.on('drawBatch', (batchData) => {
     if (socket.currentRoom) {
+      batchData.senderId = socket.id;
       socket.to(socket.currentRoom).emit('drawBatch', batchData);
-      drawingStateManager.appendStrokeBatch(socket.currentRoom, batchData);
+      drawingStateManager.appendStrokeBatch(socket.currentRoom, batchData, socket.id);
     }
   });
 
   socket.on('strokeEnd', () => {
     if (socket.currentRoom) {
-      socket.to(socket.currentRoom).emit('strokeEnd');
-      drawingStateManager.commitActiveStroke(socket.currentRoom);
+      socket.to(socket.currentRoom).emit('strokeEnd', { senderId: socket.id });
+      drawingStateManager.commitActiveStroke(socket.currentRoom, socket.id);
     }
   });
 
   socket.on('undo', () => {
     if (socket.currentRoom) {
-      const success = drawingStateManager.undoStroke(socket.currentRoom);
+      const success = drawingStateManager.undoStroke(socket.currentRoom, socket.id);
       if (success) {
-        socket.to(socket.currentRoom).emit('undo');
+        // Broadcast the updated authoritative room history to all clients so they redraw
+        const history = drawingStateManager.getRoomHistory(socket.currentRoom);
+        io.to(socket.currentRoom).emit('roomHistory', history);
       }
     }
   });
 
   socket.on('redo', () => {
     if (socket.currentRoom) {
-      const success = drawingStateManager.redoStroke(socket.currentRoom);
+      const success = drawingStateManager.redoStroke(socket.currentRoom, socket.id);
       if (success) {
-        socket.to(socket.currentRoom).emit('redo');
+        const history = drawingStateManager.getRoomHistory(socket.currentRoom);
+        io.to(socket.currentRoom).emit('roomHistory', history);
+      }
+    }
+  });
+
+  socket.on('updateShape', ({ strokeIndex, newCoords }) => {
+    if (socket.currentRoom) {
+      const success = drawingStateManager.updateShapeCoords(socket.currentRoom, strokeIndex, newCoords);
+      if (success) {
+        socket.to(socket.currentRoom).emit('updateShape', { strokeIndex, newCoords });
       }
     }
   });

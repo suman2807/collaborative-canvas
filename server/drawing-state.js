@@ -39,16 +39,20 @@ function saveRoomHistoryToDisk(room) {
   });
 }
 
-function appendStrokeBatch(room, batchData) {
+function appendStrokeBatch(room, batchData, socketId) {
   if (!activeStrokes[room]) {
     activeStrokes[room] = [];
   }
+  batchData.owner = socketId;
   activeStrokes[room].push(batchData);
 }
 
-function commitActiveStroke(room) {
+function commitActiveStroke(room, socketId) {
   const stroke = activeStrokes[room];
   if (stroke && stroke.length > 0) {
+    stroke.owner = socketId;
+    stroke.forEach(batch => batch.owner = socketId);
+    
     if (!roomHistories[room]) {
       roomHistories[room] = [];
     }
@@ -61,28 +65,51 @@ function commitActiveStroke(room) {
   return false;
 }
 
-function undoStroke(room) {
+function undoStroke(room, socketId) {
   if (roomHistories[room] && roomHistories[room].length > 0) {
-    const undoneStroke = roomHistories[room].pop();
-    if (!roomRedoHistories[room]) {
-      roomRedoHistories[room] = [];
+    // Find the last stroke matching this socketId
+    for (let i = roomHistories[room].length - 1; i >= 0; i--) {
+      if (roomHistories[room][i].owner === socketId) {
+        const undoneStroke = roomHistories[room].splice(i, 1)[0];
+        if (!roomRedoHistories[room]) {
+          roomRedoHistories[room] = [];
+        }
+        roomRedoHistories[room].push(undoneStroke);
+        saveRoomHistoryToDisk(room);
+        return true;
+      }
     }
-    roomRedoHistories[room].push(undoneStroke);
-    saveRoomHistoryToDisk(room);
-    return true;
   }
   return false;
 }
 
-function redoStroke(room) {
+function redoStroke(room, socketId) {
   if (roomRedoHistories[room] && roomRedoHistories[room].length > 0) {
-    const redoneStroke = roomRedoHistories[room].pop();
-    if (!roomHistories[room]) {
-      roomHistories[room] = [];
+    // Find the last undone stroke matching this socketId
+    for (let i = roomRedoHistories[room].length - 1; i >= 0; i--) {
+      if (roomRedoHistories[room][i].owner === socketId) {
+        const redoneStroke = roomRedoHistories[room].splice(i, 1)[0];
+        if (!roomHistories[room]) {
+          roomHistories[room] = [];
+        }
+        roomHistories[room].push(redoneStroke);
+        saveRoomHistoryToDisk(room);
+        return true;
+      }
     }
-    roomHistories[room].push(redoneStroke);
-    saveRoomHistoryToDisk(room);
-    return true;
+  }
+  return false;
+}
+
+function updateShapeCoords(room, strokeIndex, newCoords) {
+  if (roomHistories[room] && roomHistories[room][strokeIndex]) {
+    const stroke = roomHistories[room][strokeIndex];
+    if (stroke.length === 1) {
+      const batch = stroke[0];
+      Object.assign(batch, newCoords);
+      saveRoomHistoryToDisk(room);
+      return true;
+    }
   }
   return false;
 }
@@ -106,5 +133,6 @@ module.exports = {
   commitActiveStroke,
   undoStroke,
   redoStroke,
+  updateShapeCoords,
   clearHistory
 };

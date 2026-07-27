@@ -30,11 +30,23 @@ class CanvasEngine {
     // Interactive Shape Preview Snapshot
     this.previewSnapshot = null;
 
+    // Selection & Transform states
+    this.strokesLog = [];
+    this.activeStrokeBuffer = [];
+    this.selectedShape = null;
+    this.selectedStrokeIndex = -1;
+    this.isDraggingShape = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.initialShapeCoords = {};
+
     // Observer Callbacks for network broadcasts
     this.listeners = {
       drawStep: [],
       drawBatch: [],
-      strokeEnd: []
+      strokeEnd: [],
+      updateShape: [],
+      commitShapeUpdate: []
     };
 
     this.init();
@@ -136,6 +148,48 @@ class CanvasEngine {
     this.lastX = x;
     this.lastY = y;
 
+    if (this.tool === 'select') {
+      this.selectedShape = null;
+      this.selectedStrokeIndex = -1;
+      this.isDraggingShape = false;
+      
+      // Loop backward through history log to find top-most selected shape
+      for (let i = this.strokesLog.length - 1; i >= 0; i--) {
+        const stroke = this.strokesLog[i];
+        if (stroke && stroke.length === 1) {
+          const batch = stroke[0];
+          if (batch.shapeType && batch.shapeType !== 'path' && this.hitTest(batch, x, y)) {
+            this.selectedShape = batch;
+            this.selectedStrokeIndex = i;
+            this.isDraggingShape = true;
+            this.dragStartX = x;
+            this.dragStartY = y;
+            
+            // Store starting coordinate snapshots
+            this.initialShapeCoords = {};
+            if (batch.x0 !== undefined) {
+              this.initialShapeCoords.x0 = batch.x0;
+              this.initialShapeCoords.y0 = batch.y0;
+              this.initialShapeCoords.x1 = batch.x1;
+              this.initialShapeCoords.y1 = batch.y1;
+            } else if (batch.cx !== undefined) {
+              this.initialShapeCoords.cx = batch.cx;
+              this.initialShapeCoords.cy = batch.cy;
+              this.initialShapeCoords.r = batch.r;
+            } else {
+              this.initialShapeCoords.x = batch.x;
+              this.initialShapeCoords.y = batch.y;
+              this.initialShapeCoords.w = batch.w;
+              this.initialShapeCoords.h = batch.h;
+            }
+            break;
+          }
+        }
+      }
+      this.redrawAllFromLog();
+      return;
+    }
+
     // Save full canvas snapshot for preview rendering if drawing a shape
     if (this.tool !== 'brush' && this.tool !== 'eraser' && this.tool !== 'text' && this.tool !== 'image') {
       this.previewSnapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -151,6 +205,40 @@ class CanvasEngine {
 
     this.lastX = x;
     this.lastY = y;
+
+    if (this.tool === 'select') {
+      if (this.isDraggingShape && this.selectedShape) {
+        const dx = x - this.dragStartX;
+        const dy = y - this.dragStartY;
+        
+        const newCoords = {};
+        if (this.initialShapeCoords.x0 !== undefined) {
+          newCoords.x0 = this.initialShapeCoords.x0 + dx;
+          newCoords.y0 = this.initialShapeCoords.y0 + dy;
+          newCoords.x1 = this.initialShapeCoords.x1 + dx;
+          newCoords.y1 = this.initialShapeCoords.y1 + dy;
+        } else if (this.initialShapeCoords.cx !== undefined) {
+          newCoords.cx = this.initialShapeCoords.cx + dx;
+          newCoords.cy = this.initialShapeCoords.cy + dy;
+          newCoords.r = this.initialShapeCoords.r;
+        } else {
+          newCoords.x = this.initialShapeCoords.x + dx;
+          newCoords.y = this.initialShapeCoords.y + dy;
+          newCoords.w = this.initialShapeCoords.w;
+          newCoords.h = this.initialShapeCoords.h;
+        }
+        
+        Object.assign(this.selectedShape, newCoords);
+        this.redrawAllFromLog();
+        
+        // Broadcast in real time
+        this.emit('updateShape', {
+          strokeIndex: this.selectedStrokeIndex,
+          newCoords: newCoords
+        });
+      }
+      return;
+    }
 
     const strokeColor = this.tool === 'eraser' ? '#0e1117' : this.color;
 
@@ -540,6 +628,30 @@ class CanvasEngine {
     if (this.isDrawing) {
       this.isDrawing = false;
 
+      if (this.tool === 'select') {
+        if (this.isDraggingShape && this.selectedShape) {
+          this.isDraggingShape = false;
+          // Emit coordinate modification save signal to server
+          this.emit('commitShapeUpdate', {
+            strokeIndex: this.selectedStrokeIndex,
+            newCoords: {
+              x0: this.selectedShape.x0,
+              y0: this.selectedShape.y0,
+              x1: this.selectedShape.x1,
+              y1: this.selectedShape.y1,
+              x: this.selectedShape.x,
+              y: this.selectedShape.y,
+              w: this.selectedShape.w,
+              h: this.selectedShape.h,
+              cx: this.selectedShape.cx,
+              cy: this.selectedShape.cy,
+              r: this.selectedShape.r
+            }
+          });
+        }
+        return;
+      }
+
       // Handle final shapes commit & broadcast
       if (this.tool !== 'brush' && this.tool !== 'eraser') {
         const strokeColor = this.color;
@@ -655,6 +767,110 @@ class CanvasEngine {
     this.canvas.addEventListener('pointerup', stopDrawingHandler);
     this.canvas.addEventListener('pointercancel', stopDrawingHandler);
     this.canvas.addEventListener('pointerleave', stopDrawingHandler);
+  }
+
+  /**
+   * Redraw all drawings in the stroke log sequentially
+   */
+  redrawAllFromLog() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    this.strokesLog.forEach((stroke, strokeIndex) => {
+      stroke.forEach(batch => {
+        const { shapeType, color, lineWidth } = batch;
+        if (!shapeType || shapeType === 'path') {
+          if (batch.segments) {
+            batch.segments.forEach(segment => {
+              this.drawSegment(
+                segment.x0,
+                segment.y0,
+                segment.x1,
+                segment.y1,
+                color,
+                lineWidth
+              );
+            });
+          }
+        } else {
+          if (['line', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud'].includes(shapeType)) {
+            this.drawShapeOutline(shapeType, batch.x0, batch.y0, batch.x1, batch.y1, color, lineWidth);
+          } else if (shapeType === 'rect') {
+            this.drawShapeOutline('rect', batch.x, batch.y, batch.x + batch.w, batch.y + batch.h, color, lineWidth);
+          } else if (shapeType === 'circle') {
+            this.drawShapeOutline('circle', batch.cx, batch.cy, batch.cx + batch.r, batch.cy, color, lineWidth);
+          } else if (shapeType === 'text') {
+            this.drawText(batch.text, batch.x, batch.y, color, batch.fontSize);
+          } else if (shapeType === 'image') {
+            this.drawImage(batch.dataUrl, batch.x, batch.y, batch.w, batch.h);
+          }
+        }
+      });
+      
+      // If this stroke is currently selected, draw the selection outline
+      if (this.selectedStrokeIndex === strokeIndex && this.selectedShape) {
+        this.drawSelectionBox(this.selectedShape);
+      }
+    });
+  }
+
+  /**
+   * Draw a dashed purple bounding box outline around a selected shape
+   */
+  drawSelectionBox(shape) {
+    let x0, y0, x1, y1;
+    
+    if (shape.x0 !== undefined) {
+      x0 = Math.min(shape.x0, shape.x1);
+      y0 = Math.min(shape.y0, shape.y1);
+      x1 = Math.max(shape.x0, shape.x1);
+      y1 = Math.max(shape.y0, shape.y1);
+    } else if (shape.cx !== undefined) {
+      x0 = shape.cx - shape.r;
+      y0 = shape.cy - shape.r;
+      x1 = shape.cx + shape.r;
+      y1 = shape.cy + shape.r;
+    } else {
+      x0 = Math.min(shape.x, shape.x + shape.w);
+      y0 = Math.min(shape.y, shape.y + shape.h);
+      x1 = Math.max(shape.x, shape.x + shape.w);
+      y1 = Math.max(shape.y, shape.y + shape.h);
+    }
+    
+    const pad = 6;
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = '#a855f7'; // purple highlight
+    this.ctx.lineWidth = 1.5;
+    this.ctx.setLineDash([6, 4]); // dash segment pattern
+    this.ctx.strokeRect(x0 - pad, y0 - pad, (x1 - x0) + pad * 2, (y1 - y0) + pad * 2);
+    this.ctx.restore();
+  }
+
+  /**
+   * Hit-testing calculation to check if click point matches shape boundaries
+   */
+  hitTest(shape, px, py) {
+    let x0, y0, x1, y1;
+    
+    if (shape.x0 !== undefined) {
+      x0 = Math.min(shape.x0, shape.x1);
+      y0 = Math.min(shape.y0, shape.y1);
+      x1 = Math.max(shape.x0, shape.x1);
+      y1 = Math.max(shape.y0, shape.y1);
+    } else if (shape.cx !== undefined) {
+      x0 = shape.cx - shape.r;
+      y0 = shape.cy - shape.r;
+      x1 = shape.cx + shape.r;
+      y1 = shape.cy + shape.r;
+    } else {
+      x0 = Math.min(shape.x, shape.x + shape.w);
+      y0 = Math.min(shape.y, shape.y + shape.h);
+      x1 = Math.max(shape.x, shape.x + shape.w);
+      y1 = Math.max(shape.y, shape.y + shape.h);
+    }
+    
+    const pad = 10;
+    return px >= x0 - pad && px <= x1 + pad && py >= y0 - pad && py <= y1 + pad;
   }
 
   /**

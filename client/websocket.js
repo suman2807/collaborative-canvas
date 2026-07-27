@@ -103,6 +103,11 @@ class WebSocketClient {
       this.emit('roomCountUpdate', data);
     });
 
+    // Listen for remote shape updates
+    this.socket.on('updateShape', (data) => {
+      this.emit('updateShape', data);
+    });
+
     // Listen for active users updates
     this.socket.on('roomUsersUpdate', (data) => {
       this.emit('roomUsersUpdate', data);
@@ -200,6 +205,15 @@ class WebSocketClient {
   sendClear() {
     if (this.socket && this.socket.connected) {
       this.socket.emit('clear');
+    }
+  }
+
+  /**
+   * Emit shape coordinate translation updates
+   */
+  sendShapeUpdate(strokeIndex, newCoords) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('updateShape', { strokeIndex, newCoords });
     }
   }
 
