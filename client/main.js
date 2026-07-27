@@ -259,8 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
         } else {
-          if (shapeType === 'line') {
-            canvasEngine.drawShapeOutline('line', batch.x0, batch.y0, batch.x1, batch.y1, color, lineWidth);
+          if (['line', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud'].includes(shapeType)) {
+            canvasEngine.drawShapeOutline(shapeType, batch.x0, batch.y0, batch.x1, batch.y1, color, lineWidth);
           } else if (shapeType === 'rect') {
             canvasEngine.drawShapeOutline('rect', batch.x, batch.y, batch.x + batch.w, batch.y + batch.h, color, lineWidth);
           } else if (shapeType === 'circle') {
