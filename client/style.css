@@ -134,13 +134,13 @@ body {
   display: block;
 }
 
-/* Floating Toolbar HUD Container */
 .toolbar-container {
   position: absolute;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 16px;
   background-color: hsla(220, 20%, 12%, 0.75);
@@ -152,6 +152,7 @@ body {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
   z-index: 100;
   transition: bottom var(--transition-normal);
+  max-width: 95vw;
 }
 
 /* Groups and Dividers */
@@ -593,4 +594,58 @@ body {
 .username-input:focus {
   border-bottom-color: var(--accent-color);
   border-bottom-style: solid;
+}
+
+/* Tool Dropdown Container for Shapes */
+.tool-dropdown-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Chevron for Shapes dropdown button */
+.dropdown-chevron {
+  font-size: 0.55rem;
+  margin-left: 5px;
+  opacity: 0.7;
+  transition: transform var(--transition-normal);
+}
+
+/* Shapes Popover Menu */
+.shapes-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background-color: hsla(220, 20%, 10%, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsla(220, 20%, 22%, 0.6);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 101;
+}
+
+.shapes-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: hsla(220, 20%, 10%, 0.85) transparent transparent transparent;
+}
+
+.shapes-popover.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
 }

@@ -217,6 +217,121 @@ class CanvasEngine {
     } else if (shapeType === 'circle') {
       const radius = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2);
       this.ctx.arc(x0, y0, radius, 0, 2 * Math.PI);
+    } else if (shapeType === 'triangle') {
+      this.ctx.moveTo((x0 + x1) / 2, y0);
+      this.ctx.lineTo(x1, y1);
+      this.ctx.lineTo(x0, y1);
+      this.ctx.closePath();
+    } else if (shapeType === 'right-triangle') {
+      this.ctx.moveTo(x0, y0);
+      this.ctx.lineTo(x0, y1);
+      this.ctx.lineTo(x1, y1);
+      this.ctx.closePath();
+    } else if (shapeType === 'diamond') {
+      this.ctx.moveTo((x0 + x1) / 2, y0);
+      this.ctx.lineTo(x1, (y0 + y1) / 2);
+      this.ctx.lineTo((x0 + x1) / 2, y1);
+      this.ctx.lineTo(x0, (y0 + y1) / 2);
+      this.ctx.closePath();
+    } else if (shapeType === 'arrow') {
+      // Draw the main line
+      this.ctx.moveTo(x0, y0);
+      this.ctx.lineTo(x1, y1);
+      // Draw the arrow head
+      const angle = Math.atan2(y1 - y0, x1 - x0);
+      const arrowLength = Math.max(15, width * 2.5);
+      this.ctx.moveTo(x1, y1);
+      this.ctx.lineTo(x1 - arrowLength * Math.cos(angle - Math.PI / 6), y1 - arrowLength * Math.sin(angle - Math.PI / 6));
+      this.ctx.moveTo(x1, y1);
+      this.ctx.lineTo(x1 - arrowLength * Math.cos(angle + Math.PI / 6), y1 - arrowLength * Math.sin(angle + Math.PI / 6));
+    } else if (shapeType === 'star') {
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      for (let i = 0; i < 10; i++) {
+        const angle = -Math.PI / 2 + i * Math.PI / 5;
+        const rFactor = (i % 2 === 0) ? 1 : 0.4;
+        const px = cx + rx * rFactor * Math.cos(angle);
+        const py = cy + ry * rFactor * Math.sin(angle);
+        if (i === 0) {
+          this.ctx.moveTo(px, py);
+        } else {
+          this.ctx.lineTo(px, py);
+        }
+      }
+      this.ctx.closePath();
+    } else if (shapeType === 'pentagon') {
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      for (let i = 0; i < 5; i++) {
+        const angle = -Math.PI / 2 + i * 2 * Math.PI / 5;
+        const px = cx + rx * Math.cos(angle);
+        const py = cy + ry * Math.sin(angle);
+        if (i === 0) {
+          this.ctx.moveTo(px, py);
+        } else {
+          this.ctx.lineTo(px, py);
+        }
+      }
+      this.ctx.closePath();
+    } else if (shapeType === 'hexagon') {
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      for (let i = 0; i < 6; i++) {
+        const angle = -Math.PI / 2 + i * 2 * Math.PI / 6;
+        const px = cx + rx * Math.cos(angle);
+        const py = cy + ry * Math.sin(angle);
+        if (i === 0) {
+          this.ctx.moveTo(px, py);
+        } else {
+          this.ctx.lineTo(px, py);
+        }
+      }
+      this.ctx.closePath();
+    } else if (shapeType === 'octagon') {
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      for (let i = 0; i < 8; i++) {
+        const angle = -Math.PI / 2 + i * 2 * Math.PI / 8;
+        const px = cx + rx * Math.cos(angle);
+        const py = cy + ry * Math.sin(angle);
+        if (i === 0) {
+          this.ctx.moveTo(px, py);
+        } else {
+          this.ctx.lineTo(px, py);
+        }
+      }
+      this.ctx.closePath();
+    } else if (shapeType === 'heart') {
+      const w = x1 - x0;
+      const h = y1 - y0;
+      const topY = y0 + h * 0.3;
+      this.ctx.moveTo(x0 + w * 0.5, y0 + h * 0.25);
+      // Left curve
+      this.ctx.bezierCurveTo(x0 + w * 0.5, y0, x0, y0, x0, topY);
+      this.ctx.bezierCurveTo(x0, y0 + h * 0.6, x0 + w * 0.3, y0 + h * 0.8, x0 + w * 0.5, y1);
+      // Right curve
+      this.ctx.bezierCurveTo(x0 + w * 0.7, y0 + h * 0.8, x1, y0 + h * 0.6, x1, topY);
+      this.ctx.bezierCurveTo(x1, y0, x0 + w * 0.5, y0, x0 + w * 0.5, y0 + h * 0.25);
+      this.ctx.closePath();
+    } else if (shapeType === 'cloud') {
+      const w = x1 - x0;
+      const h = y1 - y0;
+      this.ctx.moveTo(x0 + w * 0.25, y0 + h * 0.7);
+      this.ctx.quadraticCurveTo(x0, y0 + h * 0.7, x0 + w * 0.1, y0 + h * 0.45);
+      this.ctx.quadraticCurveTo(x0 + w * 0.1, y0 + h * 0.15, x0 + w * 0.4, y0 + h * 0.2);
+      this.ctx.quadraticCurveTo(x0 + w * 0.6, y0, x0 + w * 0.8, y0 + h * 0.25);
+      this.ctx.quadraticCurveTo(x1, y0 + h * 0.25, x1 - w * 0.05, y0 + h * 0.55);
+      this.ctx.quadraticCurveTo(x1, y0 + h * 0.85, x0 + w * 0.75, y0 + h * 0.8);
+      this.ctx.quadraticCurveTo(x0 + w * 0.5, y1, x0 + w * 0.25, y0 + h * 0.7);
+      this.ctx.closePath();
     }
 
     this.ctx.stroke();
@@ -440,7 +555,7 @@ class CanvasEngine {
           lineWidth: this.lineWidth
         };
 
-        if (this.tool === 'line') {
+        if (['line', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud'].includes(this.tool)) {
           shapePayload.x0 = this.startX;
           shapePayload.y0 = this.startY;
           shapePayload.x1 = this.lastX;

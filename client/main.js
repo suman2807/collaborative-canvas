@@ -42,6 +42,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const toolLine = document.getElementById('tool-line');
   const toolRect = document.getElementById('tool-rect');
   const toolCircle = document.getElementById('tool-circle');
+  const toolTriangle = document.getElementById('tool-triangle');
+  const toolRightTriangle = document.getElementById('tool-right-triangle');
+  const toolDiamond = document.getElementById('tool-diamond');
+  const toolArrow = document.getElementById('tool-arrow');
+  const toolStar = document.getElementById('tool-star');
+  const toolPentagon = document.getElementById('tool-pentagon');
+  const toolHexagon = document.getElementById('tool-hexagon');
+  const toolOctagon = document.getElementById('tool-octagon');
+  const toolHeart = document.getElementById('tool-heart');
+  const toolCloud = document.getElementById('tool-cloud');
+  const toolShapesTrigger = document.getElementById('tool-shapes-trigger');
+  const shapesPopover = document.getElementById('shapes-popover');
   const toolText = document.getElementById('tool-text');
   const toolImage = document.getElementById('tool-image');
   const imageLoader = document.getElementById('image-loader');
@@ -105,8 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
     } else {
-      if (shapeType === 'line') {
-        canvasEngine.drawShapeOutline('line', remoteBatch.x0, remoteBatch.y0, remoteBatch.x1, remoteBatch.y1, color, lineWidth);
+      if (['line', 'triangle', 'right-triangle', 'diamond', 'arrow', 'star', 'pentagon', 'hexagon', 'octagon', 'heart', 'cloud'].includes(shapeType)) {
+        canvasEngine.drawShapeOutline(shapeType, remoteBatch.x0, remoteBatch.y0, remoteBatch.x1, remoteBatch.y1, color, lineWidth);
       } else if (shapeType === 'rect') {
         canvasEngine.drawShapeOutline('rect', remoteBatch.x, remoteBatch.y, remoteBatch.x + remoteBatch.w, remoteBatch.y + remoteBatch.h, color, lineWidth);
       } else if (shapeType === 'circle') {
@@ -393,14 +405,26 @@ document.addEventListener('DOMContentLoaded', () => {
    * Update active status styling on tool selection buttons
    */
   const setActiveTool = (activeBtn) => {
-    toolBrush.classList.remove('active');
-    toolEraser.classList.remove('active');
-    toolLine.classList.remove('active');
-    toolRect.classList.remove('active');
-    toolCircle.classList.remove('active');
-    toolText.classList.remove('active');
-    toolImage.classList.remove('active');
+    const shapeTools = [
+      toolLine, toolRect, toolCircle, toolTriangle,
+      toolRightTriangle, toolDiamond, toolArrow, toolStar,
+      toolPentagon, toolHexagon, toolOctagon, toolHeart, toolCloud
+    ];
+    const tools = [
+      toolBrush, toolEraser, ...shapeTools,
+      toolText, toolImage
+    ];
+    tools.forEach(btn => btn && btn.classList.remove('active'));
     activeBtn.classList.add('active');
+
+    // Highlight the shapes trigger if a shape tool is active
+    if (toolShapesTrigger) {
+      if (shapeTools.includes(activeBtn)) {
+        toolShapesTrigger.classList.add('active');
+      } else {
+        toolShapesTrigger.classList.remove('active');
+      }
+    }
   };
 
   /**
@@ -446,11 +470,111 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasEngine.tool = 'circle';
     setActiveTool(toolCircle);
   });
+  
+  if (toolTriangle) {
+    toolTriangle.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'triangle';
+      setActiveTool(toolTriangle);
+    });
+  }
+
+  if (toolRightTriangle) {
+    toolRightTriangle.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'right-triangle';
+      setActiveTool(toolRightTriangle);
+    });
+  }
+
+  if (toolDiamond) {
+    toolDiamond.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'diamond';
+      setActiveTool(toolDiamond);
+    });
+  }
+
+  if (toolArrow) {
+    toolArrow.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'arrow';
+      setActiveTool(toolArrow);
+    });
+  }
+
+  if (toolStar) {
+    toolStar.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'star';
+      setActiveTool(toolStar);
+    });
+  }
+
+  if (toolPentagon) {
+    toolPentagon.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'pentagon';
+      setActiveTool(toolPentagon);
+    });
+  }
+
+  if (toolHexagon) {
+    toolHexagon.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'hexagon';
+      setActiveTool(toolHexagon);
+    });
+  }
+
+  if (toolOctagon) {
+    toolOctagon.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'octagon';
+      setActiveTool(toolOctagon);
+    });
+  }
+
+  if (toolHeart) {
+    toolHeart.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'heart';
+      setActiveTool(toolHeart);
+    });
+  }
+
+  if (toolCloud) {
+    toolCloud.addEventListener('click', () => {
+      canvasEngine.commitActiveTextInput();
+      canvasEngine.tool = 'cloud';
+      setActiveTool(toolCloud);
+    });
+  }
 
   toolText.addEventListener('click', () => {
     canvasEngine.tool = 'text';
     setActiveTool(toolText);
   });
+
+  // Toggle shapes popover
+  if (toolShapesTrigger && shapesPopover) {
+    toolShapesTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      shapesPopover.classList.toggle('open');
+    });
+
+    // Close shapes popover on shape selection
+    shapesPopover.addEventListener('click', () => {
+      shapesPopover.classList.remove('open');
+    });
+
+    // Close shapes popover when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.tool-dropdown-container')) {
+        shapesPopover.classList.remove('open');
+      }
+    });
+  }
 
   // Trigger file selection for image insertions
   toolImage.addEventListener('click', () => {
