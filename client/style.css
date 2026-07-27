@@ -531,8 +531,9 @@ body {
   z-index: 120;
 }
 
-/* Show dropdown on parent hover */
-.user-list-container:hover .user-list-dropdown {
+/* Show dropdown on parent hover or active class */
+.user-list-container:hover .user-list-dropdown,
+.user-list-container.active .user-list-dropdown {
   display: flex;
 }
 
@@ -573,4 +574,23 @@ body {
   padding: 0px 4px;
   border-radius: 3px;
   margin-left: auto;
+}
+
+.username-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.3);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0px 2px;
+  width: 90px;
+  outline: none;
+  transition: border-bottom-color var(--transition-fast);
+}
+
+.username-input:focus {
+  border-bottom-color: var(--accent-color);
+  border-bottom-style: solid;
 }

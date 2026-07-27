@@ -42,6 +42,22 @@ const saveRoomHistoryToDisk = (room) => {
   });
 };
 
+// Helper: Compile and broadcast updated list of active users in the room
+const broadcastRoomUsers = (room) => {
+  const roomClients = io.sockets.adapter.rooms.get(room);
+  const users = [];
+  if (roomClients) {
+    for (const clientId of roomClients) {
+      const clientSocket = io.sockets.sockets.get(clientId);
+      users.push({
+        id: clientId,
+        username: clientSocket?.username || `User (${clientId.substring(0, 4)})`
+      });
+    }
+  }
+  io.to(room).emit('roomUsersUpdate', { users });
+};
+
 // Middleware to serve static files from the client directory
 app.use(express.static(clientPath));
 
@@ -64,7 +80,7 @@ io.on('connection', (socket) => {
   console.log(`[Socket Server] Client connected: ${socket.id}`);
 
   // Handle room joining requests
-  socket.on('joinRoom', ({ room }) => {
+  socket.on('joinRoom', ({ room, username }) => {
     // Leave all previous rooms (except the socket's default individual room)
     socket.rooms.forEach(currentRoom => {
       if (currentRoom !== socket.id) {
@@ -74,7 +90,10 @@ io.on('connection', (socket) => {
 
     socket.join(room);
     socket.currentRoom = room; // Store room reference on the socket object
-    console.log(`[Socket Server] Client ${socket.id} joined room: ${room}`);
+    if (username) {
+      socket.username = String(username).trim().substring(0, 15);
+    }
+    console.log(`[Socket Server] Client ${socket.id} (${socket.username || 'Anonymous'}) joined room: ${room}`);
 
     // Update and broadcast room count update
     const roomClients = io.sockets.adapter.rooms.get(room);
@@ -82,13 +101,7 @@ io.on('connection', (socket) => {
     io.to(room).emit('roomCountUpdate', { count });
 
     // Compile and broadcast updated list of active user IDs in the room
-    const users = [];
-    if (roomClients) {
-      for (const clientId of roomClients) {
-        users.push({ id: clientId });
-      }
-    }
-    io.to(room).emit('roomUsersUpdate', { users });
+    broadcastRoomUsers(room);
 
     // Load room history from disk if not present in memory cache
     if (!roomHistories[room]) {
@@ -202,12 +215,24 @@ io.on('connection', (socket) => {
   // Relay pointer cursor updates
   socket.on('cursorMove', (coords) => {
     if (socket.currentRoom) {
-      // Send cursor coordinates with sender's ID to other room members
+      // Send cursor coordinates with sender's ID and name to other room members
       socket.to(socket.currentRoom).emit('cursorMove', {
         id: socket.id,
+        username: socket.username || `User (${socket.id.substring(0, 4)})`,
         x: coords.x,
         y: coords.y
       });
+    }
+  });
+
+  // Handle display name modifications
+  socket.on('changeUsername', ({ username }) => {
+    const sanitized = String(username).trim().substring(0, 15);
+    if (sanitized) {
+      socket.username = sanitized;
+      if (socket.currentRoom) {
+        broadcastRoomUsers(socket.currentRoom);
+      }
     }
   });
 
@@ -232,12 +257,16 @@ io.on('connection', (socket) => {
         socket.to(currentRoom).emit('roomCountUpdate', { count });
         socket.to(currentRoom).emit('userLeft', socket.id);
 
-        // Compile and broadcast updated list of active user IDs in the room (excluding this socket)
+        // Compile and broadcast updated list of active users in the room (excluding this socket)
         const users = [];
         if (roomClients) {
           for (const clientId of roomClients) {
             if (clientId !== socket.id) {
-              users.push({ id: clientId });
+              const clientSocket = io.sockets.sockets.get(clientId);
+              users.push({
+                id: clientId,
+                username: clientSocket?.username || `User (${clientId.substring(0, 4)})`
+              });
             }
           }
         }

@@ -23,9 +23,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvasEngine = new CanvasEngine(canvas);
   console.log('[App] Canvas Engine Initialized successfully.');
 
-  // Initialize WebSocket Client with Room parameter
-  const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text', room);
-  console.log(`[App] WebSocket Client Initialized for room: ${room}`);
+  // Generate a random fun nickname if none persists
+  const generateRandomName = () => {
+    const adjectives = ['Creative', 'Artistic', 'Swift', 'Bright', 'Clever', 'Happy', 'Neon', 'Bold', 'Pixel', 'Sketchy'];
+    const animals = ['Cheetah', 'Owl', 'Sloth', 'Fox', 'Koala', 'Panda', 'Tiger', 'Dolphin', 'Falcon', 'Rabbit'];
+    return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
+  };
+  const savedUsername = localStorage.getItem('codraw_username') || generateRandomName();
+  localStorage.setItem('codraw_username', savedUsername);
+
+  // Initialize WebSocket Client with Room and Username parameters
+  const socketClient = new WebSocketClient('connection-status', '.status-indicator .status-text', room, savedUsername);
+  console.log(`[App] WebSocket Client Initialized for room: ${room} as ${savedUsername}`);
 
   // DOM Elements binding definitions
   const toolBrush = document.getElementById('tool-brush');
@@ -48,6 +57,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const cursorsContainer = document.getElementById('cursors-container');
   const userCountBadge = document.getElementById('user-count');
   const userListDropdown = document.getElementById('user-list-dropdown');
+  
+  // Toggle user list dropdown on click (essential for mobile/tablet touch users)
+  const userListContainer = document.querySelector('.user-list-container');
+  if (userListContainer) {
+    userListContainer.addEventListener('click', (e) => {
+      if (e.target.closest('#user-list-dropdown')) return;
+      userListContainer.classList.toggle('active');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!userListContainer.contains(e.target)) {
+        userListContainer.classList.remove('active');
+      }
+    });
+  }
   
   // Performance HUD Elements
   const fpsLabel = document.getElementById('fps-val');
@@ -132,33 +156,71 @@ document.addEventListener('DOMContentLoaded', () => {
   socketClient.on('roomUsersUpdate', ({ users }) => {
     userListDropdown.innerHTML = '';
     
-    users.forEach(u => {
+    // Sort so the current client is always at the top of the list
+    const sortedUsers = [...users].sort((a, b) => {
+      if (a.id === socketClient.socket.id) return -1;
+      if (b.id === socketClient.socket.id) return 1;
+      return 0;
+    });
+
+    sortedUsers.forEach(u => {
       const isYou = u.id === socketClient.socket.id;
       const userColor = getDeterministicColor(u.id);
       
       const item = document.createElement('div');
       item.className = 'user-item';
+      if (isYou) item.classList.add('you-item');
       
       const dot = document.createElement('span');
       dot.className = 'user-item-dot';
       dot.style.color = userColor;
       dot.style.backgroundColor = userColor;
-      
-      const label = document.createElement('span');
-      label.className = 'user-item-label';
-      label.textContent = isYou ? 'You' : `User-${u.id.substring(0, 4)}`;
-      
       item.appendChild(dot);
-      item.appendChild(label);
       
       if (isYou) {
+        // Editable display name input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'username-input';
+        input.value = u.username || socketClient.username;
+        input.maxLength = 15;
+        input.title = "Click to change display name";
+        
+        input.addEventListener('change', (e) => {
+          const val = e.target.value.trim();
+          if (val) {
+            socketClient.changeUsername(val);
+          }
+        });
+        
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            input.blur();
+          }
+        });
+        
+        item.appendChild(input);
+        
         const youBadge = document.createElement('span');
         youBadge.className = 'user-item-you';
         youBadge.textContent = 'YOU';
         item.appendChild(youBadge);
+      } else {
+        const label = document.createElement('span');
+        label.className = 'user-item-label';
+        label.textContent = u.username || `User-${u.id.substring(0, 4)}`;
+        item.appendChild(label);
       }
       
       userListDropdown.appendChild(item);
+    });
+
+    // Update existing cursor labels on name changes
+    users.forEach(u => {
+      const cursorLabel = document.querySelector(`#cursor-${u.id} .cursor-label`);
+      if (cursorLabel) {
+        cursorLabel.textContent = u.username || `User-${u.id.substring(0, 4)}`;
+      }
     });
   });
 
@@ -280,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Render peer cursors in the DOM overlay
-  socketClient.on('cursorMove', ({ id, x, y }) => {
+  socketClient.on('cursorMove', ({ id, username, x, y }) => {
     let cursorEl = document.getElementById(`cursor-${id}`);
     
     // Create cursor DOM elements dynamically if not already present
@@ -298,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Create label tag
       const label = document.createElement('span');
       label.className = 'cursor-label';
-      label.textContent = `User-${id.substring(0, 4)}`;
+      label.textContent = username || `User-${id.substring(0, 4)}`;
 
       cursorEl.appendChild(pointer);
       cursorEl.appendChild(label);

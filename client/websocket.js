@@ -2,10 +2,11 @@
  * WebSocketClient - Coordinates connection handshakes, network events, and status updates.
  */
 class WebSocketClient {
-  constructor(statusIndicatorId, statusTextSelector, roomName) {
+  constructor(statusIndicatorId, statusTextSelector, roomName, username) {
     this.statusDot = document.getElementById(statusIndicatorId);
     this.statusText = document.querySelector(statusTextSelector);
     this.room = roomName;
+    this.username = username;
     this.socket = null;
     
     // Observer Callbacks for canvas synchronization
@@ -49,7 +50,7 @@ class WebSocketClient {
       this.updateStatus(true);
       
       // Join the assigned room channel
-      this.socket.emit('joinRoom', { room: this.room });
+      this.socket.emit('joinRoom', { room: this.room, username: this.username });
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -208,6 +209,17 @@ class WebSocketClient {
   sendPing(callback) {
     if (this.socket && this.socket.connected) {
       this.socket.emit('ping', callback);
+    }
+  }
+
+  /**
+   * Notify server that this user updated their display name
+   */
+  changeUsername(newName) {
+    this.username = newName;
+    localStorage.setItem('codraw_username', newName);
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('changeUsername', { username: newName });
     }
   }
 }
