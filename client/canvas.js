@@ -41,6 +41,24 @@ class CanvasEngine {
   }
 
   /**
+   * Subscribe to internal canvas engine events
+   */
+  on(eventName, callback) {
+    if (this.listeners[eventName]) {
+      this.listeners[eventName].push(callback);
+    }
+  }
+
+  /**
+   * Emit internal canvas engine events to subscribers
+   */
+  emit(eventName, payload) {
+    if (this.listeners[eventName]) {
+      this.listeners[eventName].forEach(cb => cb(payload));
+    }
+  }
+
+  /**
    * Initialize canvas parameters and attach listeners
    */
   init() {
